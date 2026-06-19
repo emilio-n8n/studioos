@@ -8,7 +8,7 @@ install:
 dev:
 	@echo "Starting backend and frontend..."
 	@trap 'kill 0' EXIT; \
-		cd backend && uvicorn app.main:app --port 8000 --reload & \
+		( cd backend && ([ -f .venv/bin/activate ] && . .venv/bin/activate; uvicorn app.main:app --port 8000 --reload) ) & \
 		cd frontend && npm run dev & \
 		wait
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 GREEN='\033[0;32m'
@@ -38,7 +38,7 @@ if [ -z "$PYTHON" ]; then
   fail "Python 3 not found. Install Python 3.11+ first."
   exit 1
 fi
-PYVER=$($PYTHON --version 2>&1 | grep -oP '\d+\.\d+' | head -1)
+PYVER=$($PYTHON --version 2>&1 | awk '{print $2}' | cut -d. -f1-2)
 log "Python $PYVER found"
 
 # Node
