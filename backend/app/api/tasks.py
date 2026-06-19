@@ -13,6 +13,7 @@ from app.schemas.task import TaskResponse, TaskTransition, DashboardResponse
 from app.kernel.task_engine import is_valid_transition
 from app.kernel.event_bus import event_bus
 from app.kernel.memory_system import memory_system
+from app.kernel.log_handler import set_project_context
 
 logger = logging.getLogger("studioos.tasks")
 router = APIRouter(prefix="/api/projects/{project_id}/tasks", tags=["tasks"])
@@ -59,6 +60,7 @@ def get_dashboard(project_id: int, db: Session = Depends(get_db)):
 
 @router.patch("/{task_id}/status", response_model=TaskResponse)
 async def transition_task(project_id: int, task_id: int, body: TaskTransition, db: Session = Depends(get_db)):
+    set_project_context(project_id)
     task = db.query(Task).filter(Task.id == task_id, Task.project_id == project_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -68,6 +70,7 @@ async def transition_task(project_id: int, task_id: int, body: TaskTransition, d
 
     old_status = task.status
     task.status = body.status
+    logger.info(f"Task #{task_id} '{task.title}': {old_status} → {body.status}")
     memory_system.log_audit(db, project_id, "task_transition", "Workflow",
                             {"task_id": task.id, "title": task.title, "from": old_status, "to": body.status})
     db.commit()

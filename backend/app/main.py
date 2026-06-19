@@ -8,10 +8,20 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database import init_db
 from app.config import settings
+from app.kernel.event_bus import event_bus
+from app.kernel.log_handler import WebSocketLogHandler
 from app.api import projects, organizations, tasks, websocket, generation
 
 logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO))
 logger = logging.getLogger("studioos")
+
+ws_handler = WebSocketLogHandler(event_bus)
+ws_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+logging.getLogger("studioos").addHandler(ws_handler)
+logging.getLogger("studioos.projects").addHandler(ws_handler)
+logging.getLogger("studioos.generation").addHandler(ws_handler)
+logging.getLogger("studioos.tasks").addHandler(ws_handler)
+logging.getLogger("studioos.file_manager").addHandler(ws_handler)
 
 
 @asynccontextmanager

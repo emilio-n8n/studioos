@@ -17,6 +17,7 @@ from app.org_intelligence.recruiter import define_roles
 from app.org_intelligence.agent_factory import create_agents, generate_initial_tasks
 from app.kernel.event_bus import event_bus
 from app.kernel.memory_system import memory_system
+from app.kernel.log_handler import set_project_context
 
 logger = logging.getLogger("studioos.projects")
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -50,6 +51,8 @@ async def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
     )
     db.add(project)
     db.flush()
+    set_project_context(project.id)
+    logger.info(f"Project #{project.id} created — starting organization design")
 
     org_design = design_organization(analysis)
     org = Organization(
@@ -60,6 +63,7 @@ async def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
     db.add(org)
     db.flush()
 
+    logger.info(f"Organization #{org.id} designed — building departments")
     role_defs = define_roles(analysis.suggested_departments)
     departments_map = {}
 
@@ -75,8 +79,10 @@ async def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
         db.flush()
         departments_map[dept_name] = dept
 
+    logger.info(f"Departments created: {len(departments_map)}")
     agents_data = create_agents(role_defs)
     tasks_data = generate_initial_tasks(agents_data)
+    logger.info(f"Roles: {len(role_defs)}, Agents: {len(agents_data)}, Tasks: {len(tasks_data)}")
 
     role_agent_map = {}
     for ad in agents_data:

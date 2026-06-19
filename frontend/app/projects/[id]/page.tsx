@@ -10,6 +10,7 @@ import OrgChart from "@/components/organization/OrgChart";
 import TaskBoard from "@/components/project/TaskBoard";
 import AnalysisReport from "@/components/project/AnalysisReport";
 import GenerationPanel from "@/components/generation/GenerationPanel";
+import LogPanel from "@/components/logs/LogPanel";
 import {
   getProject,
   getOrgTree,
@@ -19,7 +20,7 @@ import {
 } from "@/lib/api";
 import type { Project, Dashboard, OrgTree, Task } from "@/lib/types";
 
-type Tab = "dashboard" | "organization" | "tasks" | "analysis" | "alerts" | "generation";
+type Tab = "dashboard" | "organization" | "tasks" | "analysis" | "alerts" | "generation" | "logs";
 
 export default function ProjectPage() {
   const params = useParams();
@@ -85,6 +86,7 @@ export default function ProjectPage() {
     { key: "analysis", label: "Rapport Stratégique" },
     { key: "generation", label: "Génération" },
     { key: "alerts", label: "Alertes" },
+    { key: "logs", label: "Logs" },
   ];
 
   if (isNaN(projectId)) {
@@ -184,6 +186,10 @@ export default function ProjectPage() {
             genError={genError}
             onGenerate={handleGenerate}
           />
+        )}
+
+        {activeTab === "logs" && (
+          <LogPanel projectId={projectId} />
         )}
 
         {activeTab === "alerts" && (

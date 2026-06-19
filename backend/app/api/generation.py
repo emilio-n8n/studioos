@@ -12,6 +12,7 @@ from app.models.organization import Organization
 from app.models.department import Department
 from app.models.role import Role
 from app.kernel.event_bus import event_bus
+from app.kernel.log_handler import set_project_context
 from app.workforce.agent_executor import generate_website_files
 from app.workforce.file_manager import file_manager
 
@@ -21,12 +22,16 @@ router = APIRouter(prefix="/api/projects", tags=["generation"])
 
 @router.post("/{project_id}/generate")
 async def generate_project(project_id: int, db: Session = Depends(get_db)):
+    set_project_context(project_id)
+    logger.info(f"Generation started for project #{project_id}")
+
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
     if project.status != "ready":
         raise HTTPException(status_code=400, detail=f"Project status is '{project.status}', expected 'ready'")
+    logger.info(f"Project '{project.name}' is ready — loading organization")
 
     org = db.query(Organization).options(
         joinedload(Organization.departments).joinedload(Department.roles).joinedload(Role.agents)
@@ -34,6 +39,7 @@ async def generate_project(project_id: int, db: Session = Depends(get_db)):
 
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
+    logger.info(f"Organization '{org.name}' loaded — {len(org.departments)} departments")
 
     try:
         await event_bus.emit_to_project(project_id, "generation_started", {"project_id": project_id})
@@ -61,6 +67,7 @@ async def generate_project(project_id: int, db: Session = Depends(get_db)):
     analysis = project.analysis or {}
 
     if api_key:
+        logger.info("Sending request to LLM for website generation...")
         try:
             files = await generate_website_files(
                 project_name=project.name,
@@ -72,6 +79,7 @@ async def generate_project(project_id: int, db: Session = Depends(get_db)):
                 provider=project.provider or "openai",
                 model=project.model or None,
             )
+            logger.info(f"LLM returned {len(files)} files")
         except Exception as e:
             logger.error(f"Generation failed for project {project_id}: {e}")
             try:
@@ -80,6 +88,7 @@ async def generate_project(project_id: int, db: Session = Depends(get_db)):
                 pass
             raise HTTPException(status_code=500, detail="Website generation failed. Please try again.")
     else:
+        logger.info("No API key — using demo template")
         files = [
             {"path": "index.html", "content": _demo_html(project)},
             {"path": "css/style.css", "content": _demo_css()},
@@ -88,7 +97,7 @@ async def generate_project(project_id: int, db: Session = Depends(get_db)):
 
     output_dir = await asyncio.to_thread(file_manager.save_website, project_id, files)
     output_url = await asyncio.to_thread(file_manager.get_output_url, project_id)
-    logger.info(f"Website generated at {output_dir}")
+    logger.info(f"Website saved to {output_dir}")
 
     try:
         await event_bus.emit_to_project(project_id, "generation_complete", {
