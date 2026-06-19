@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ReactFlow,
   MiniMap,
@@ -15,6 +15,7 @@ import {
   Position,
 } from "reactflow";
 import "reactflow/dist/style.css";
+import RoleCard from "./RoleCard";
 
 const NODE_STYLES: Record<string, string> = {
   department: "border-blue-400 bg-blue-50 text-blue-900",
@@ -31,6 +32,9 @@ function CustomNode({ data }: NodeProps) {
       {data.status && (
         <div className="text-[10px] opacity-70">{data.status}</div>
       )}
+      {data.summary && (
+        <div className="mt-0.5 text-[9px] text-zinc-500 line-clamp-1">{data.summary}</div>
+      )}
       <Handle type="source" position={Position.Bottom} />
     </div>
   );
@@ -42,9 +46,23 @@ const nodeTypes = {
   agent: CustomNode,
 };
 
+interface Role {
+  id: number;
+  title: string;
+  summary: string | null;
+  responsibilities: string[];
+  authority: string[];
+  permissions: string[];
+  reports_to: string | null;
+  required_skills: string[];
+  metrics: string[];
+  status: string;
+}
+
 interface Props {
   nodes: Node[];
   edges: Edge[];
+  roles?: Role[];
 }
 
 function layoutTree(nodes: Node[], edges: Edge[]): { nodes: Node[]; edges: Edge[] } {
@@ -66,7 +84,7 @@ function layoutTree(nodes: Node[], edges: Edge[]): { nodes: Node[]; edges: Edge[
 
   const positions = new Map<string, { x: number; y: number }>();
   const nodeWidth = 200;
-  const nodeHeight = 80;
+  const nodeHeight = 90;
   const horizontalSpacing = 40;
   const verticalSpacing = 80;
 
@@ -104,7 +122,8 @@ function layoutTree(nodes: Node[], edges: Edge[]): { nodes: Node[]; edges: Edge[
   return { nodes: laidOutNodes, edges };
 }
 
-export default function OrgChart({ nodes: rawNodes, edges: rawEdges }: Props) {
+export default function OrgChart({ nodes: rawNodes, edges: rawEdges, roles = [] }: Props) {
+  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const { nodes: laidOutNodes, edges: laidOutEdges } = useMemo(
     () => layoutTree(rawNodes, rawEdges),
     [rawNodes, rawEdges]
@@ -112,6 +131,13 @@ export default function OrgChart({ nodes: rawNodes, edges: rawEdges }: Props) {
 
   const [nodes, setNodes, onNodesChange] = useNodesState(laidOutNodes);
   const [flowEdges, setEdges, onEdgesChange] = useEdgesState(laidOutEdges);
+
+  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+    if (node.type === "role") {
+      const role = roles.find((r) => r.title === node.data.label);
+      if (role) setSelectedRole(role);
+    }
+  }, [roles]);
 
   const onLayout = useCallback(() => {
     const { nodes: relaid, edges: relied } = layoutTree(nodes, flowEdges);
@@ -128,20 +154,26 @@ export default function OrgChart({ nodes: rawNodes, edges: rawEdges }: Props) {
   }
 
   return (
-    <div className="h-[500px] rounded-xl border border-zinc-200 bg-white shadow-sm">
-      <ReactFlow
-        nodes={nodes}
-        edges={flowEdges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        nodeTypes={nodeTypes}
-        fitView
-        attributionPosition="bottom-left"
-      >
-        <Controls />
-        <MiniMap />
-        <Background color="#e5e5e5" gap={16} />
-      </ReactFlow>
-    </div>
+    <>
+      <div className="h-[500px] rounded-xl border border-zinc-200 bg-white shadow-sm">
+        <ReactFlow
+          nodes={nodes}
+          edges={flowEdges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          nodeTypes={nodeTypes}
+          onNodeClick={onNodeClick}
+          fitView
+          attributionPosition="bottom-left"
+        >
+          <Controls />
+          <MiniMap />
+          <Background color="#e5e5e5" gap={16} />
+        </ReactFlow>
+      </div>
+      {selectedRole && (
+        <RoleCard role={selectedRole} onClose={() => setSelectedRole(null)} />
+      )}
+    </>
   );
 }

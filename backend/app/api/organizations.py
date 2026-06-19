@@ -18,10 +18,14 @@ def _build_org_response(org: Organization) -> OrganizationResponse:
             roles_resp.append(RoleResponse(
                 id=role.id,
                 title=role.title,
+                summary=role.summary,
                 responsibilities=role.responsibilities,
                 authority=role.authority,
+                permissions=role.permissions,
                 reports_to=role.reports_to,
                 required_skills=role.required_skills,
+                metrics=role.metrics,
+                status=role.status,
             ))
         depts_resp.append(DepartmentResponse(
             id=dept.id,
@@ -34,6 +38,7 @@ def _build_org_response(org: Organization) -> OrganizationResponse:
         id=org.id,
         project_id=org.project_id,
         name=org.name,
+        structure_type=org.structure_type,
         hierarchy=org.hierarchy,
         departments=depts_resp,
     )
@@ -74,7 +79,7 @@ def get_org_tree(project_id: int, db: Session = Depends(get_db)):
                 "id": f"role-{role.id}",
                 "type": "role",
                 "position": {"x": 0, "y": 0},
-                "data": {"label": role.title, "description": role.responsibilities, "type": "role"},
+                "data": {"label": role.title, "summary": role.summary, "type": "role"},
             }
             nodes.append(role_node)
             edges.append({

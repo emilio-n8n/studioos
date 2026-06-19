@@ -5,12 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.project import Project
-from app.models.organization import Organization
+from app.models.organization import Organization, StrategicDecision
 from app.models.department import Department
 from app.models.role import Role
 from app.models.agent import Agent
 from app.models.task import Task
-from app.schemas.project import ProjectCreate, ProjectResponse, ProjectListItem
+from app.schemas.project import ProjectCreate, ProjectResponse, ProjectListItem, DecisionResponse
 from app.org_intelligence.strategic_planner import LLMStrategicPlanner, DemoStrategicPlanner
 from app.org_intelligence.organization_architect import design_organization
 from app.org_intelligence.recruiter import define_roles
@@ -96,10 +96,14 @@ async def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
         role = Role(
             department_id=dept.id,
             title=rd["title"],
+            summary=rd.get("summary", ""),
             responsibilities=rd["responsibilities"],
             authority=rd["authority"],
+            permissions=rd.get("permissions", []),
             reports_to=rd["reports_to"],
             required_skills=rd["required_skills"],
+            metrics=rd.get("metrics", []),
+            status="active",
         )
         db.add(role)
         db.flush()
@@ -122,6 +126,30 @@ async def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
                         estimated_cost=td["estimated_cost"],
                     )
                     db.add(task)
+
+    decisions = [
+        StrategicDecision(project_id=project.id, category="complexity", title="Complexité estimée",
+                          description=analysis.complexity_rationale, impact=analysis.complexity,
+                          extra={"value": analysis.complexity}),
+        StrategicDecision(project_id=project.id, category="duration", title="Durée estimée",
+                          description=f"Projet estimé à {analysis.estimated_duration}",
+                          impact=analysis.estimated_duration),
+        StrategicDecision(project_id=project.id, category="structure", title="Structure organisationnelle",
+                          description=f"Organisation avec {len(departments_map)} départements et {len(role_defs)} rôles",
+                          impact="hierarchical"),
+    ]
+    for risk in analysis.risks:
+        decisions.append(StrategicDecision(
+            project_id=project.id, category="risk", title=risk.get("risk", "Risque"),
+            description=risk.get("mitigation", ""), impact=risk.get("severity", "medium"),
+        ))
+    for assumption in analysis.assumptions:
+        decisions.append(StrategicDecision(
+            project_id=project.id, category="assumption", title="Hypothèse retenue",
+            description=assumption, impact="accepted",
+        ))
+    for d in decisions:
+        db.add(d)
 
     project.status = "ready"
     db.commit()
@@ -153,6 +181,17 @@ def get_project(project_id: int, db: Session = Depends(get_db)):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
+
+
+@router.get("/{project_id}/decisions", response_model=list[DecisionResponse])
+def list_decisions(project_id: int, db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    decisions = db.query(StrategicDecision).filter(
+        StrategicDecision.project_id == project_id
+    ).order_by(StrategicDecision.created_at.asc()).all()
+    return decisions
 
 
 @router.get("/models/opencode-go")

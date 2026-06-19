@@ -36,3 +36,4 @@ class DashboardResponse(BaseModel):
     total_departments: int
     complexity: str | None
     risks: list | None
+    total_decisions: int = 0

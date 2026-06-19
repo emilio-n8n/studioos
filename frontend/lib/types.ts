@@ -37,6 +37,7 @@ export interface Organization {
   id: number;
   project_id: number;
   name: string;
+  structure_type: string;
   hierarchy: any[];
   departments: Department[];
 }
@@ -51,10 +52,14 @@ export interface Department {
 export interface Role {
   id: number;
   title: string;
+  summary: string | null;
   responsibilities: string[];
   authority: string[];
+  permissions: string[];
   reports_to: string | null;
   required_skills: string[];
+  metrics: string[];
+  status: string;
 }
 
 export interface Agent {
@@ -87,6 +92,18 @@ export interface Dashboard {
   total_departments: number;
   complexity: string | null;
   risks: Risk[] | null;
+  total_decisions: number;
+}
+
+export interface StrategicDecision {
+  id: number;
+  project_id: number;
+  category: string;
+  title: string;
+  description: string | null;
+  impact: string | null;
+  extra: Record<string, unknown> | null;
+  created_at: string;
 }
 
 export interface OrgTree {

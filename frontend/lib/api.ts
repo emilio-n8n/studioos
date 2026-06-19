@@ -70,3 +70,7 @@ export function generateWebsite(projectId: number) {
     300000
   );
 }
+
+export function getDecisions(projectId: number) {
+  return request<import("./types").StrategicDecision[]>(`/api/projects/${projectId}/decisions`);
+}

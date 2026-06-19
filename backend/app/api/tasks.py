@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models.task import Task
 from app.models.project import Project
-from app.models.organization import Organization
+from app.models.organization import Organization, StrategicDecision
 from app.models.department import Department
 from app.models.role import Role
 from app.schemas.task import TaskResponse, TaskTransition, DashboardResponse
@@ -46,6 +46,10 @@ def get_dashboard(project_id: int, db: Session = Depends(get_db)):
     role_count = sum(len(d.roles) for d in org.departments) if org else 0
     agent_count = sum(len(r.agents) for d in org.departments for r in d.roles) if org else 0
 
+    decision_count = db.query(StrategicDecision).filter(
+        StrategicDecision.project_id == project_id
+    ).count()
+
     return DashboardResponse(
         project_id=project.id,
         total_tasks=len(tasks),
@@ -55,6 +59,7 @@ def get_dashboard(project_id: int, db: Session = Depends(get_db)):
         total_departments=dept_count,
         complexity=project.complexity,
         risks=(project.analysis or {}).get("risks", []),
+        total_decisions=decision_count,
     )
 
 

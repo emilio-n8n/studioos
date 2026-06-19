@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Header from "@/components/layout/Header";
 import CEODashboard from "@/components/dashboard/CEODashboard";
 import ProductionFlow from "@/components/dashboard/ProductionFlow";
@@ -14,13 +14,15 @@ import LogPanel from "@/components/logs/LogPanel";
 import {
   getProject,
   getOrgTree,
+  getOrganization,
   getDashboard,
   listTasks,
   generateWebsite,
+  getDecisions,
 } from "@/lib/api";
-import type { Project, Dashboard, OrgTree, Task } from "@/lib/types";
+import type { Project, Dashboard, OrgTree, Task, StrategicDecision, Organization } from "@/lib/types";
 
-type Tab = "dashboard" | "organization" | "tasks" | "analysis" | "alerts" | "generation" | "logs";
+type Tab = "dashboard" | "organization" | "tasks" | "analysis" | "generation" | "logs";
 
 export default function ProjectPage() {
   const params = useParams();
@@ -29,8 +31,10 @@ export default function ProjectPage() {
 
   const [project, setProject] = useState<Project | null>(null);
   const [orgTree, setOrgTree] = useState<OrgTree | null>(null);
+  const [org, setOrg] = useState<Organization | null>(null);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [decisions, setDecisions] = useState<StrategicDecision[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,16 +46,20 @@ export default function ProjectPage() {
     if (isNaN(projectId)) return;
     setError(null);
     try {
-      const [proj, dt, ot, tk] = await Promise.all([
+      const [proj, dt, ot, tk, og, dec] = await Promise.all([
         getProject(projectId),
         getDashboard(projectId),
         getOrgTree(projectId),
         listTasks(projectId),
+        getOrganization(projectId),
+        getDecisions(projectId),
       ]);
       setProject(proj);
       setDashboard(dt);
       setOrgTree(ot);
       setTasks(tk);
+      setOrg(og);
+      setDecisions(dec);
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : "Failed to load project");
@@ -79,13 +87,14 @@ export default function ProjectPage() {
     }
   };
 
+  const allRoles = org?.departments?.flatMap((d) => d.roles) ?? [];
+
   const tabs: { key: Tab; label: string }[] = [
     { key: "dashboard", label: "CEO Dashboard" },
     { key: "organization", label: "Organigramme" },
     { key: "tasks", label: "Tâches" },
     { key: "analysis", label: "Rapport Stratégique" },
     { key: "generation", label: "Génération" },
-    { key: "alerts", label: "Alertes" },
     { key: "logs", label: "Logs" },
   ];
 
@@ -149,9 +158,17 @@ export default function ProjectPage() {
       </nav>
 
       <main className="flex-1 overflow-y-auto px-6 py-6">
-        {activeTab === "dashboard" && <CEODashboard dashboard={dashboard} />}
+        {activeTab === "dashboard" && (
+          <CEODashboard dashboard={dashboard} decisions={decisions} />
+        )}
 
-        {activeTab === "organization" && <OrgChart nodes={orgTree?.nodes ?? []} edges={orgTree?.edges ?? []} />}
+        {activeTab === "organization" && (
+          <OrgChart
+            nodes={orgTree?.nodes ?? []}
+            edges={orgTree?.edges ?? []}
+            roles={allRoles}
+          />
+        )}
         {activeTab === "organization" && !orgTree && (
           <p className="text-sm text-zinc-400">Organisation non disponible</p>
         )}
@@ -190,18 +207,6 @@ export default function ProjectPage() {
 
         {activeTab === "logs" && (
           <LogPanel projectId={projectId} />
-        )}
-
-        {activeTab === "alerts" && (
-          <AlertCenter
-            alerts={(project.analysis?.risks || []).map((r) => {
-              const type = r.severity === "high" ? "risk" : "delay" as const;
-              return {
-                type,
-                message: r.risk + (r.mitigation ? ` — ${r.mitigation}` : ""),
-              };
-            })}
-          />
         )}
       </main>
     </div>

@@ -3,9 +3,11 @@
 import sys, os, json
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from datetime import datetime, timezone
+
 from app.database import SessionLocal, init_db
 from app.models.project import Project
-from app.models.organization import Organization
+from app.models.organization import Organization, StrategicDecision
 from app.models.department import Department
 from app.models.role import Role
 from app.models.agent import Agent
@@ -48,10 +50,34 @@ def seed():
         org = Organization(
             project_id=project.id,
             name=org_design["name"],
+            structure_type="hierarchical",
             hierarchy=org_design["hierarchy"],
         )
         db.add(org)
         db.flush()
+
+        decisions = [
+            StrategicDecision(project_id=project.id, category="complexity",
+                              title="Complexité estimée", description=analysis.complexity_rationale,
+                              impact=analysis.complexity, extra={"value": analysis.complexity}),
+            StrategicDecision(project_id=project.id, category="duration",
+                              title="Durée estimée", description=f"Projet estimé à {analysis.estimated_duration}"),
+            StrategicDecision(project_id=project.id, category="structure",
+                              title="Structure organisationnelle",
+                              description=f"Organisation avec {len(analysis.suggested_departments)} départements"),
+        ]
+        for risk in analysis.risks:
+            decisions.append(StrategicDecision(
+                project_id=project.id, category="risk", title=risk.get("risk", "Risque"),
+                description=risk.get("mitigation", ""), impact=risk.get("severity", "medium"),
+            ))
+        for assumption in analysis.assumptions:
+            decisions.append(StrategicDecision(
+                project_id=project.id, category="assumption", title="Hypothèse retenue",
+                description=assumption, impact="accepted",
+            ))
+        for d in decisions:
+            db.add(d)
 
         role_defs = define_roles(analysis.suggested_departments)
         dept_map = {}
@@ -76,10 +102,14 @@ def seed():
             role = Role(
                 department_id=dept.id,
                 title=rd["title"],
+                summary=rd.get("summary", ""),
                 responsibilities=rd["responsibilities"],
                 authority=rd["authority"],
+                permissions=rd.get("permissions", []),
                 reports_to=rd["reports_to"],
                 required_skills=rd["required_skills"],
+                metrics=rd.get("metrics", []),
+                status="active",
             )
             db.add(role)
             db.flush()
@@ -104,6 +134,7 @@ def seed():
         db.commit()
         db.refresh(project)
         print(f"✅ Project #{project.id} created: {project.name}")
+        print(f"   Decisions: {len(decisions)}, Departments: {len(dept_map)}, Roles: {len(role_defs)}")
 
         files = [
             {"path": "index.html", "content": _demo_html(project)},

@@ -36,3 +36,17 @@ class ProjectListItem(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class DecisionResponse(BaseModel):
+    id: int
+    project_id: int
+    category: str
+    title: str
+    description: str | None
+    impact: str | None
+    extra: dict | None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
