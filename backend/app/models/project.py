@@ -14,6 +14,8 @@ class Project(Base):
     description = Column(Text, nullable=False)
     status = Column(String(50), default="analyzing")
     complexity = Column(String(50), nullable=True)
+    provider = Column(String(50), default="openai")
+    model = Column(String(100), nullable=True)
     openai_api_key = Column(String(255), nullable=True)
     analysis = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)

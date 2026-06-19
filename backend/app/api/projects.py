@@ -25,12 +25,15 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 @router.post("", response_model=ProjectResponse, status_code=201)
 async def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
     is_demo = body.openai_api_key.strip().lower() == "demo"
+    provider = body.provider or "openai"
+    model = body.model or None
+
     if is_demo:
         planner = DemoStrategicPlanner()
     else:
         planner = LLMStrategicPlanner()
     try:
-        analysis = await planner.analyze(body.description, body.openai_api_key)
+        analysis = await planner.analyze(body.description, body.openai_api_key, provider=provider, model=model)
     except Exception as e:
         logger.warning(f"Strategic Planner error: {e}")
         raise HTTPException(status_code=400, detail="Analysis failed. Check your API key and try again.")
@@ -40,6 +43,8 @@ async def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
         description=body.description,
         status="analyzing",
         complexity=analysis.complexity,
+        provider=provider,
+        model=model,
         openai_api_key=body.openai_api_key,
         analysis=analysis.to_dict(),
     )
@@ -142,3 +147,9 @@ def get_project(project_id: int, db: Session = Depends(get_db)):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
+
+
+@router.get("/models/opencode-go")
+def list_opencode_go_models():
+    from app.config import get_opencode_go_models
+    return {"provider": "opencode-go", "models": get_opencode_go_models()}

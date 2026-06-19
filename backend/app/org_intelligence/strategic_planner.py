@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 from openai import AsyncOpenAI
 
-from app.config import settings
+from app.config import settings, OPENCODE_GO_BASE_URL
 
 
 SYSTEM_PROMPT = """You are the Strategic Planner for StudioOS, an operating system that designs autonomous organizations to complete complex projects.
@@ -60,16 +60,23 @@ class ProjectAnalysis:
 
 class BaseStrategicPlanner(ABC):
     @abstractmethod
-    async def analyze(self, description: str, api_key: str | None = None) -> ProjectAnalysis:
+    async def analyze(self, description: str, api_key: str | None = None, provider: str = "openai", model: str | None = None) -> ProjectAnalysis:
         ...
 
 
 class LLMStrategicPlanner(BaseStrategicPlanner):
-    async def analyze(self, description: str, api_key: str | None = None) -> ProjectAnalysis:
-        client = AsyncOpenAI(api_key=api_key, timeout=60.0)
+    async def analyze(self, description: str, api_key: str | None = None, provider: str = "openai", model: str | None = None) -> ProjectAnalysis:
+        if provider == "opencode-go":
+            base_url = OPENCODE_GO_BASE_URL
+            model_name = model or "deepseek-v4-flash"
+        else:
+            base_url = None
+            model_name = model or settings.openai_model
+
+        client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=60.0)
         try:
             response = await client.chat.completions.create(
-                model=settings.openai_model,
+                model=model_name,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": f"Project description:\n\n{description}"},
@@ -78,7 +85,7 @@ class LLMStrategicPlanner(BaseStrategicPlanner):
                 temperature=0.3,
             )
         except Exception as e:
-            raise RuntimeError(f"OpenAI API error: {e}") from e
+            raise RuntimeError(f"LLM API error: {e}") from e
 
         if not response.choices:
             raise RuntimeError("LLM returned empty response")
@@ -93,12 +100,12 @@ class LLMStrategicPlanner(BaseStrategicPlanner):
 
 
 class RuleBasedStrategicPlanner(BaseStrategicPlanner):
-    async def analyze(self, description: str, api_key: str | None = None) -> ProjectAnalysis:
+    async def analyze(self, description: str, api_key: str | None = None, provider: str = "openai", model: str | None = None) -> ProjectAnalysis:
         raise NotImplementedError("Rule-based planner not implemented yet")
 
 
 class DemoStrategicPlanner(BaseStrategicPlanner):
-    async def analyze(self, description: str, api_key: str | None = None) -> ProjectAnalysis:
+    async def analyze(self, description: str, api_key: str | None = None, provider: str = "openai", model: str | None = None) -> ProjectAnalysis:
         return ProjectAnalysis({
             "name": "SaaS Landing Page — TaskFlow",
             "summary": "A modern, responsive SaaS landing page for TaskFlow, a project management tool. Features hero section, feature highlights, pricing tiers, and contact form.",

@@ -37,6 +37,7 @@ def seed():
             description="A modern SaaS landing page for TaskFlow project management tool.",
             status="ready",
             complexity=analysis.complexity,
+            provider="openai",
             openai_api_key="demo",
             analysis=analysis.to_dict(),
         )

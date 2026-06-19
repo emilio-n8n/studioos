@@ -3,7 +3,7 @@ import re
 
 from openai import AsyncOpenAI
 
-from app.config import settings
+from app.config import settings, OPENCODE_GO_BASE_URL
 
 
 WEBSITE_SYSTEM_PROMPT = """You are a full-stack web development team. Your job is to build a complete, production-quality website based on the project analysis below.
@@ -51,6 +51,8 @@ async def generate_website_files(
     departments: list[dict],
     roles: list[dict],
     api_key: str,
+    provider: str = "openai",
+    model: str | None = None,
 ) -> list[dict]:
     user_prompt = f"""# Project: {project_name}
 
@@ -72,9 +74,16 @@ Departments and their roles:
 
 Generate a complete website for this project."""
 
-    client = AsyncOpenAI(api_key=api_key, timeout=120.0)
+    if provider == "opencode-go":
+        base_url = OPENCODE_GO_BASE_URL
+        model_name = model or "deepseek-v4-flash"
+    else:
+        base_url = None
+        model_name = model or settings.openai_model
+
+    client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=120.0)
     response = await client.chat.completions.create(
-        model=settings.openai_model,
+        model=model_name,
         messages=[
             {"role": "system", "content": WEBSITE_SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},

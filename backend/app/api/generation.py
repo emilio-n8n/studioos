@@ -69,6 +69,8 @@ async def generate_project(project_id: int, db: Session = Depends(get_db)):
                 departments=departments_data,
                 roles=roles_data,
                 api_key=api_key,
+                provider=project.provider or "openai",
+                model=project.model or None,
             )
         except Exception as e:
             logger.error(f"Generation failed for project {project_id}: {e}")
