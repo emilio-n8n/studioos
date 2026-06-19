@@ -1,0 +1,144 @@
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.models.project import Project
+from app.models.organization import Organization
+from app.models.department import Department
+from app.models.role import Role
+from app.models.agent import Agent
+from app.models.task import Task
+from app.schemas.project import ProjectCreate, ProjectResponse, ProjectListItem
+from app.org_intelligence.strategic_planner import LLMStrategicPlanner, DemoStrategicPlanner
+from app.org_intelligence.organization_architect import design_organization
+from app.org_intelligence.recruiter import define_roles
+from app.org_intelligence.agent_factory import create_agents, generate_initial_tasks
+from app.kernel.event_bus import event_bus
+from app.kernel.memory_system import memory_system
+
+logger = logging.getLogger("studioos.projects")
+router = APIRouter(prefix="/api/projects", tags=["projects"])
+
+
+@router.post("", response_model=ProjectResponse, status_code=201)
+async def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
+    is_demo = body.openai_api_key.strip().lower() == "demo"
+    if is_demo:
+        planner = DemoStrategicPlanner()
+    else:
+        planner = LLMStrategicPlanner()
+    try:
+        analysis = await planner.analyze(body.description, body.openai_api_key)
+    except Exception as e:
+        logger.warning(f"Strategic Planner error: {e}")
+        raise HTTPException(status_code=400, detail="Analysis failed. Check your API key and try again.")
+
+    project = Project(
+        name=body.name or analysis.name,
+        description=body.description,
+        status="analyzing",
+        complexity=analysis.complexity,
+        openai_api_key=body.openai_api_key,
+        analysis=analysis.to_dict(),
+    )
+    db.add(project)
+    db.flush()
+
+    org_design = design_organization(analysis)
+    org = Organization(
+        project_id=project.id,
+        name=org_design["name"],
+        hierarchy=org_design["hierarchy"],
+    )
+    db.add(org)
+    db.flush()
+
+    role_defs = define_roles(analysis.suggested_departments)
+    departments_map = {}
+
+    for dept_data in analysis.suggested_departments:
+        if isinstance(dept_data, dict):
+            dept_name = dept_data.get("name", str(dept_data))
+            dept_desc = dept_data.get("description", "")
+        else:
+            dept_name = str(dept_data)
+            dept_desc = ""
+        dept = Department(organization_id=org.id, name=dept_name, description=dept_desc)
+        db.add(dept)
+        db.flush()
+        departments_map[dept_name] = dept
+
+    agents_data = create_agents(role_defs)
+    tasks_data = generate_initial_tasks(agents_data)
+
+    role_agent_map = {}
+    for ad in agents_data:
+        key = (ad["role_title"], ad["department_name"])
+        role_agent_map.setdefault(key, []).append(ad)
+
+    for rd in role_defs:
+        dept = departments_map.get(rd["department_name"])
+        if not dept:
+            continue
+        role = Role(
+            department_id=dept.id,
+            title=rd["title"],
+            responsibilities=rd["responsibilities"],
+            authority=rd["authority"],
+            reports_to=rd["reports_to"],
+            required_skills=rd["required_skills"],
+        )
+        db.add(role)
+        db.flush()
+
+        for ad in role_agent_map.get((rd["title"], rd["department_name"]), []):
+            agent = Agent(role_id=role.id, name=ad["name"], status=ad["status"])
+            db.add(agent)
+            db.flush()
+
+            for td in tasks_data:
+                if td["assigned_agent_name"] == ad["name"]:
+                    task = Task(
+                        project_id=project.id,
+                        department_id=dept.id,
+                        assigned_agent_id=agent.id,
+                        title=td["title"],
+                        description=td["description"],
+                        priority=td["priority"],
+                        status=td["status"],
+                        estimated_cost=td["estimated_cost"],
+                    )
+                    db.add(task)
+
+    project.status = "ready"
+    db.commit()
+    db.refresh(project)
+
+    memory_system.store(db, project.id, "strategic_analysis", analysis.to_dict(), type="analysis")
+    memory_system.log_audit(db, project.id, "project_created", "StrategicPlanner", {"complexity": analysis.complexity})
+    memory_system.log_audit(db, project.id, "organization_created", "OrganizationArchitect",
+                            {"departments": len(departments_map), "roles": len(role_defs), "agents": len(agents_data)})
+    db.commit()
+
+    try:
+        await event_bus.emit_to_project(project.id, "project_ready", {"project_id": project.id})
+    except Exception as e:
+        logger.warning(f"Event bus emit failed: {e}")
+
+    return project
+
+
+@router.get("", response_model=list[ProjectListItem])
+def list_projects(db: Session = Depends(get_db)):
+    projects = db.query(Project).order_by(Project.created_at.desc()).all()
+    return projects
+
+
+@router.get("/{project_id}", response_model=ProjectResponse)
+def get_project(project_id: int, db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project

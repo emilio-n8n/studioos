@@ -1,0 +1,37 @@
+from datetime import datetime
+from typing import Literal
+from pydantic import BaseModel
+
+
+class TaskResponse(BaseModel):
+    id: int
+    project_id: int
+    department_id: int | None
+    assigned_agent_id: int | None
+    title: str
+    description: str | None
+    priority: int
+    status: str
+    estimated_cost: float
+    depends_on: list
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+VALID_STATUSES = Literal["TODO", "ASSIGNED", "IN_PROGRESS", "REVIEW", "APPROVED", "MERGED", "ARCHIVED"]
+
+class TaskTransition(BaseModel):
+    status: VALID_STATUSES
+
+
+class DashboardResponse(BaseModel):
+    project_id: int
+    total_tasks: int
+    tasks_by_status: dict[str, int]
+    total_agents: int
+    total_roles: int
+    total_departments: int
+    complexity: str | None
+    risks: list | None
