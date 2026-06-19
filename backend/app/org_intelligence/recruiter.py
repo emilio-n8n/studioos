@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 DEPARTMENT_ROLE_TEMPLATES: dict[str, list[dict]] = {
     "Game Design": [
         {"title": "Game Director", "responsibilities": ["Define creative vision", "Approve game design decisions"], "authority": ["Final call on design"], "reports_to": None, "required_skills": ["Game design", "Leadership"]},
