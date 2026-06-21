@@ -1,6 +1,7 @@
 import logging
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -8,9 +9,36 @@ from app.models.project import Project
 from app.models.memory_node import MemoryNode
 from app.schemas.memory import MemoryNodeCreate, MemoryNodeResponse, MemoryNodeUpdate, MemoryGraphResponse
 from app.kernel.event_bus import event_bus, EVENT_MEMORY_CREATED
+from app.kernel.memory_replay import memory_replay
 
 logger = logging.getLogger("studioos.memory")
 router = APIRouter(prefix="/api/projects/{project_id}/memory", tags=["memory"])
+
+
+@router.get("/snapshot")
+def get_memory_snapshot(
+    project_id: int,
+    timestamp: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if timestamp:
+        try:
+            ts = datetime.fromisoformat(timestamp)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid timestamp format")
+        return memory_replay.get_snapshot_at(db, project_id, ts)
+    return memory_replay.get_snapshot(db, project_id)
+
+
+@router.get("/replay")
+def get_memory_replay(project_id: int, db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return memory_replay.replay(db, project_id)
 
 
 @router.get("/graph", response_model=MemoryGraphResponse)

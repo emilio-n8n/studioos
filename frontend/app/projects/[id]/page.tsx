@@ -22,7 +22,9 @@ import {
   listTasks,
   generateWebsite,
   getDecisions,
+  runPipeline,
 } from "@/lib/api";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import type { Project, Dashboard, OrgTree, Task, StrategicDecision, Organization } from "@/lib/types";
 
 type Tab = "dashboard" | "organization" | "tasks" | "analysis" | "generation" | "logs" | "memory" | "reviews" | "git";
@@ -44,6 +46,8 @@ export default function ProjectPage() {
   const [generating, setGenerating] = useState(false);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [genError, setGenError] = useState<string | null>(null);
+  const [runningPipeline, setRunningPipeline] = useState(false);
+  const [pipelineStatus, setPipelineStatus] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (isNaN(projectId)) return;
@@ -75,6 +79,20 @@ export default function ProjectPage() {
     loadData();
   }, [loadData]);
 
+  const handleWsEvent = useCallback((event: { type: string; data?: unknown }) => {
+    const refreshTypes = [
+      "TASK_STARTED", "TASK_COMPLETED",
+      "REVIEW_REQUESTED", "REVIEW_APPROVED", "REVIEW_CHANGES_REQUESTED",
+      "GIT_COMMIT_CREATED", "PR_CREATED", "PR_MERGED",
+      "MEMORY_CREATED", "PIPELINE_COMPLETED",
+    ];
+    if (refreshTypes.includes(event.type)) {
+      loadData();
+    }
+  }, [loadData]);
+
+  useWebSocket(projectId, handleWsEvent);
+
   const handleGenerate = async () => {
     if (isNaN(projectId)) return;
     setGenerating(true);
@@ -87,6 +105,20 @@ export default function ProjectPage() {
       setGenError(err instanceof Error ? err.message : "Generation failed");
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleRunPipeline = async () => {
+    if (isNaN(projectId)) return;
+    setRunningPipeline(true);
+    setPipelineStatus(null);
+    try {
+      const result = await runPipeline(projectId);
+      setPipelineStatus(`Terminé : ${result.tasks_completed}/${result.tasks_total} tâches`);
+    } catch (err: unknown) {
+      setPipelineStatus(err instanceof Error ? err.message : "Pipeline failed");
+    } finally {
+      setRunningPipeline(false);
     }
   };
 
@@ -215,12 +247,32 @@ export default function ProjectPage() {
         )}
 
         {activeTab === "generation" && (
-          <GenerationPanel
-            generating={generating}
-            generatedUrl={generatedUrl}
-            genError={genError}
-            onGenerate={handleGenerate}
-          />
+          <div className="space-y-6">
+            <div className="rounded-lg border border-zinc-200 bg-white p-4">
+              <h2 className="mb-3 text-lg font-semibold text-zinc-900">Pipeline</h2>
+              <p className="mb-3 text-sm text-zinc-500">
+                Exécute toutes les tâches via le scheduleur DAG et génère le site.
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleRunPipeline}
+                  disabled={runningPipeline}
+                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {runningPipeline ? "Exécution..." : "Lancer le pipeline"}
+                </button>
+                {pipelineStatus && (
+                  <span className="text-sm text-zinc-600">{pipelineStatus}</span>
+                )}
+              </div>
+            </div>
+            <GenerationPanel
+              generating={generating}
+              generatedUrl={generatedUrl}
+              genError={genError}
+              onGenerate={handleGenerate}
+            />
+          </div>
         )}
 
         {activeTab === "logs" && (

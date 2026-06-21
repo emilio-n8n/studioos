@@ -78,3 +78,20 @@ export function getDecisions(projectId: number) {
 export function getMemoryGraph(projectId: number) {
   return request<import("./types").MemoryGraphData>(`/api/projects/${projectId}/memory/graph`);
 }
+
+export function getMemorySnapshot(projectId: number, timestamp?: string) {
+  const qs = timestamp ? `?timestamp=${encodeURIComponent(timestamp)}` : "";
+  return request<Record<string, unknown>>(`/api/projects/${projectId}/memory/snapshot${qs}`);
+}
+
+export function getMemoryReplay(projectId: number) {
+  return request<Record<string, unknown>[]>(`/api/projects/${projectId}/memory/replay`);
+}
+
+export function runPipeline(projectId: number) {
+  return request<{ status: string; tasks_completed: number; tasks_total: number }>(
+    `/api/projects/${projectId}/pipeline/run`,
+    { method: "POST" },
+    300000
+  );
+}
