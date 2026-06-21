@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_BASE } from "@/lib/config";
+import { getApiBase } from "@/lib/config";
 
 interface GitCommit {
   hexsha: string;
@@ -39,7 +39,7 @@ export default function GitPanel({ projectId }: Props) {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const base = `${API_BASE}/api/projects/${projectId}/git`;
+      const base = `${getApiBase()}/api/projects/${projectId}/git`;
       const [logRes, prRes, branchRes] = await Promise.all([
         fetch(`${base}/log`),
         fetch(`${base}/prs`),
@@ -67,7 +67,7 @@ export default function GitPanel({ projectId }: Props) {
 
   const handleMerge = async (prId: number) => {
     try {
-      const res = await fetch(`${API_BASE}/api/projects/${projectId}/git/pr/${prId}/merge`, { method: "POST" });
+      const res = await fetch(`${getApiBase()}/api/projects/${projectId}/git/pr/${prId}/merge`, { method: "POST" });
       if (res.ok) loadAll();
     } catch {
       // ignore

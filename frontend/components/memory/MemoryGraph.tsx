@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_BASE } from "@/lib/config";
+import { getApiBase } from "@/lib/config";
 
 interface MemoryNode {
   id: number;
@@ -60,7 +60,7 @@ export default function MemoryGraph({ projectId }: Props) {
   const loadGraph = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/projects/${projectId}/memory/graph`);
+      const res = await fetch(`${getApiBase()}/api/projects/${projectId}/memory/graph`);
       if (res.ok) setGraph(await res.json());
     } catch {
       // ignore

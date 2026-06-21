@@ -1,6 +1,6 @@
 "use client";
 
-import { API_BASE } from "@/lib/config";
+import { getApiBase } from "@/lib/config";
 
 interface Props {
   generating: boolean;
@@ -15,7 +15,7 @@ export default function GenerationPanel({
   genError,
   onGenerate,
 }: Props) {
-  const apiBase = API_BASE;
+  const apiBase = getApiBase();
 
   let previewUrl: string | null = null;
   if (generatedUrl) {

@@ -1,10 +1,10 @@
-import { API_BASE } from "./config";
+import { getApiBase } from "./config";
 
 async function request<T>(path: string, options?: RequestInit, timeoutMs = 120000): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await fetch(`${getApiBase()}${path}`, {
       signal: controller.signal,
       headers: { "Content-Type": "application/json" },
       ...options,

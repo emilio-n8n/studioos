@@ -1,6 +1,4 @@
-"use client";
-
-function detectApiBase(): string {
+export function getApiBase(): string {
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
@@ -15,10 +13,8 @@ function detectApiBase(): string {
   return "http://localhost:8000";
 }
 
-function detectWsBase(apiBase: string): string {
-  if (apiBase.startsWith("https://")) return apiBase.replace(/^https/, "wss");
-  return apiBase.replace(/^http/, "ws");
+export function getWsBase(): string {
+  const api = getApiBase();
+  if (api.startsWith("https://")) return api.replace(/^https/, "wss");
+  return api.replace(/^http/, "ws");
 }
-
-export const API_BASE = detectApiBase();
-export const WS_BASE = detectWsBase(API_BASE);

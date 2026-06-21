@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { WS_BASE } from "@/lib/config";
+import { getWsBase } from "@/lib/config";
 
 interface LogEntry {
   id: number;
@@ -40,7 +40,7 @@ export default function LogPanel({ projectId }: Props) {
   }, []);
 
   useEffect(() => {
-    const url = `${WS_BASE}/ws/projects/${projectId}`;
+    const url = `${getWsBase()}/ws/projects/${projectId}`;
     const ws = new WebSocket(url);
 
     ws.onopen = () => setConnected(true);
