@@ -27,8 +27,13 @@ lint:
 
 # ── Cleaning ──
 clean:
-	rm -rf backend/__pycache__ backend/**/__pycache__ backend/*.db
-	rm -rf frontend/.next frontend/out
+	rm -rf backend/__pycache__ backend/**/__pycache__ backend/*.db backend/repos/
+	rm -rf frontend/.next frontend/out frontend/node_modules/.cache
+
+reset: clean
+	pkill -f "uvicorn" 2>/dev/null; pkill -f "next dev" 2>/dev/null; sleep 1
+	rm -rf backend/.venv frontend/node_modules
+	bash install.sh
 
 # ── Docker ──
 docker-build:
