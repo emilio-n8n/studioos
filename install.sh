@@ -15,7 +15,7 @@ fail() { echo -e "${RED}[fail]${NC} $1"; }
 
 echo ""
 echo "╔══════════════════════════════════════╗"
-echo "║        StudioOS v3 — Installation    ║"
+echo "║        StudioOS — Installation        ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
 
