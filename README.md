@@ -41,7 +41,7 @@ studioos/
 │   │   ├── api/          # REST + WebSocket endpoints
 │   │   ├── models/       # SQLAlchemy models (Project, Organization, MemoryNode, Review, PullRequest...)
 │   │   ├── schemas/      # Pydantic schemas
-│   │   ├── kernel/       # EventBus, GitManager, MemorySystem, TaskEngine
+│   │   ├── kernel/       # EventBus, EventStore, DAGEngine, GitManager, MemorySystem, TaskEngine
 │   │   ├── org_intelligence/  # StrategicPlanner, Recruiter, AgentFactory
 │   │   └── workforce/    # AgentExecutor, FileManager
 │   └── scripts/seed.py   # Demo data seeder
@@ -144,9 +144,35 @@ If the issue persists, check the **Ports** tab — make sure ports 3000 and 8000
 3. **Organization Architect** designs the org structure (departments, hierarchy)
 4. **Recruiter** & **Agent Factory** define roles (with summary, permissions, metrics, skills) and assign agents with initial tasks
 5. Agents execute tasks and **commit work to git** on their own branches (`agent/{name}`)
-6. **Review Layer** — worker submits output, reviewer approves or requests changes, lead merges
-7. **Memory Graph** — all decisions, constraints, and artifacts are versioned and shared across every agent
-8. Preview results (generated site, git log, PRs) directly in the dashboard
+6. **Review Layer** — worker submits output, reviewer approves or requests changes, lead merges. No task can reach final status without an approved review (review gate)
+7. **Memory Graph** — all decisions, constraints, and artifacts are versioned and shared across every agent. Immutable: new versions append, values never mutate
+8. **Event-Sourced Kernel** — every action emits a typed event persisted in an append-only event log, replayable for full traceability
+9. **DAG Execution** — tasks with dependencies are topologically sorted and executed in parallel batches
+10. Preview results (generated site, git log, PRs) directly in the dashboard
+
+## Event System (V8 Kernel)
+
+Every mutation emits a typed event persisted in the `event_log` table:
+
+| Event | Trigger |
+|-------|---------|
+| PROJECT_CREATED | Project created via API |
+| STRATEGY_GENERATED | Analysis completed |
+| ORG_CREATED | Organization designed |
+| AGENT_SPAWNED | Agents generated |
+| TASK_ASSIGNED / TASK_STARTED / TASK_COMPLETED | Task lifecycle |
+| REVIEW_REQUESTED / REVIEW_APPROVED / REVIEW_CHANGES_REQUESTED | Review lifecycle |
+| GIT_COMMIT_CREATED / PR_CREATED / PR_MERGED | Git lifecycle |
+| MEMORY_CREATED | Memory node created |
+
+Events are replayable via `EventStore.replay()` and the `event_log` table is the single source of truth for the system's complete history.
+
+## DAG Execution
+
+Tasks with `depends_on` dependencies are automatically topologically sorted. The `DAG` engine:
+- Validates acyclic constraints
+- Returns ready tasks for each parallel execution batch
+- Prevents execution of tasks with unmet dependencies
 
 ## API
 
@@ -158,8 +184,8 @@ If the issue persists, check the **Ports** tab — make sure ports 3000 and 8000
 | GET | `/api/projects/{id}/organization` | Full org structure |
 | GET | `/api/projects/{id}/organization/tree` | Org chart tree |
 | GET | `/api/projects/{id}/tasks/dashboard` | Dashboard stats |
-| PATCH | `/api/projects/{id}/tasks/{tid}/status` | Transition task |
-| GET/POST | `/api/projects/{id}/memory` | Memory Graph CRUD |
+| PATCH | `/api/projects/{id}/tasks/{tid}/status` | Transition task (review-gated) |
+| GET/POST | `/api/projects/{id}/memory` | Memory Graph CRUD (append-only) |
 | GET | `/api/projects/{id}/memory/graph` | Memory graph with edges |
 | GET/POST | `/api/projects/{id}/reviews` | Review management |
 | POST | `/api/projects/{id}/reviews/{rid}/approve` | Approve review |

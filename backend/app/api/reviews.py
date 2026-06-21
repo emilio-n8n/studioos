@@ -8,9 +8,10 @@ from app.models.project import Project
 from app.models.task import Task
 from app.models.agent import Agent
 from app.models.review_model import Review
+from app.models.role import Role
 from app.schemas.review import ReviewResponse, ReviewApprove, ReviewRequestChanges
-from app.kernel.task_engine import is_valid_transition
-from app.kernel.event_bus import event_bus
+from app.kernel.task_engine import is_valid_transition, can_transition_to
+from app.kernel.event_bus import event_bus, EVENT_REVIEW_REQUESTED, EVENT_REVIEW_APPROVED, EVENT_REVIEW_CHANGES_REQUESTED
 
 logger = logging.getLogger("studioos.reviews")
 router = APIRouter(prefix="/api/projects/{project_id}/reviews", tags=["reviews"])
@@ -51,7 +52,7 @@ async def approve_review(project_id: int, review_id: int, body: ReviewApprove, d
 
     db.commit()
     db.refresh(review)
-    await event_bus.emit_to_project(project_id, "review_approved", {"review_id": review.id, "task_id": review.task_id})
+    await event_bus.emit_to_project(project_id, EVENT_REVIEW_APPROVED, {"review_id": review.id, "task_id": review.task_id}, db)
     return review
 
 
@@ -73,7 +74,7 @@ async def request_changes(project_id: int, review_id: int, body: ReviewRequestCh
 
     db.commit()
     db.refresh(review)
-    await event_bus.emit_to_project(project_id, "review_changes_requested", {"review_id": review.id, "task_id": review.task_id})
+    await event_bus.emit_to_project(project_id, EVENT_REVIEW_CHANGES_REQUESTED, {"review_id": review.id, "task_id": review.task_id}, db)
     return review
 
 
@@ -91,16 +92,25 @@ async def submit_for_review(
     if not is_valid_transition(task.status, "REVIEW"):
         raise HTTPException(status_code=400, detail=f"Cannot submit task in status {task.status}")
 
-    worker = db.query(Agent).filter(Agent.id == worker_id, Agent.project_id == project_id).first()
+    worker = db.query(Agent).filter(Agent.id == worker_id).first()
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
 
-    # Find a reviewer (agent from same department with higher authority)
-    reviewer = db.query(Agent).filter(
-        Agent.department_id == worker.department_id,
-        Agent.id != worker.id,
-        Agent.status == "active",
-    ).first()
+    role = db.query(Role).filter(Role.id == worker.role_id).first()
+    department_id = role.department_id if role else None
+
+    # Find a Lead-level reviewer from same department
+    reviewer = (
+        db.query(Agent)
+        .join(Role)
+        .filter(
+            Role.department_id == department_id,
+            Agent.id != worker.id,
+            Agent.status == "active",
+        )
+        .order_by(Role.id.desc())
+        .first()
+    )
     reviewer_id = reviewer.id if reviewer else None
 
     review = Review(
@@ -119,7 +129,7 @@ async def submit_for_review(
     db.refresh(review)
     logger.info(f"Review #{review.id} created for task #{task_id} by agent #{worker_id}")
 
-    await event_bus.emit_to_project(project_id, "review_created", {
+    await event_bus.emit_to_project(project_id, EVENT_REVIEW_REQUESTED, {
         "review_id": review.id, "task_id": task_id, "worker_id": worker_id,
-    })
+    }, db)
     return review

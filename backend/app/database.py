@@ -24,4 +24,5 @@ def get_db():
 
 
 def init_db():
+    import app.models.event_log  # noqa: F401 — ensure EventLog table is created
     Base.metadata.create_all(bind=engine)

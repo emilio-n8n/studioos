@@ -7,6 +7,7 @@ from app.database import get_db
 from app.models.project import Project
 from app.models.memory_node import MemoryNode
 from app.schemas.memory import MemoryNodeCreate, MemoryNodeResponse, MemoryNodeUpdate, MemoryGraphResponse
+from app.kernel.event_bus import event_bus, EVENT_MEMORY_CREATED
 
 logger = logging.getLogger("studioos.memory")
 router = APIRouter(prefix="/api/projects/{project_id}/memory", tags=["memory"])
@@ -65,7 +66,7 @@ def get_memory_history(project_id: int, node_id: int, db: Session = Depends(get_
 
 
 @router.post("", response_model=MemoryNodeResponse, status_code=201)
-def create_memory(project_id: int, body: MemoryNodeCreate, db: Session = Depends(get_db)):
+async def create_memory(project_id: int, body: MemoryNodeCreate, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -101,14 +102,24 @@ def create_memory(project_id: int, body: MemoryNodeCreate, db: Session = Depends
     db.commit()
     db.refresh(node)
     logger.info(f"MemoryNode #{node.id} created: {node.key} (v{node.version})")
+
+    await event_bus.emit_to_project(project_id, EVENT_MEMORY_CREATED, {
+        "node_id": node.id,
+        "key": node.key,
+        "version": node.version,
+        "type": node.type,
+        "created_by": node.created_by,
+    }, db)
+
     return node
 
 
 @router.patch("/{node_id}", response_model=MemoryNodeResponse)
-def update_memory(project_id: int, node_id: int, body: MemoryNodeUpdate, db: Session = Depends(get_db)):
+async def update_memory(project_id: int, node_id: int, body: MemoryNodeUpdate, db: Session = Depends(get_db)):
     node = db.query(MemoryNode).filter(MemoryNode.id == node_id, MemoryNode.project_id == project_id).first()
     if not node:
         raise HTTPException(status_code=404, detail="Memory node not found")
+
     if body.status is not None:
         node.status = body.status
     if body.approved_by is not None:

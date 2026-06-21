@@ -10,13 +10,21 @@ from app.models.organization import Organization, StrategicDecision
 from app.models.department import Department
 from app.models.role import Role
 from app.schemas.task import TaskResponse, TaskTransition, DashboardResponse
-from app.kernel.task_engine import is_valid_transition
-from app.kernel.event_bus import event_bus
+from app.kernel.task_engine import is_valid_transition, can_transition_to
+from app.kernel.event_bus import event_bus, EVENT_TASK_ASSIGNED, EVENT_TASK_STARTED, EVENT_TASK_COMPLETED
 from app.kernel.memory_system import memory_system
 from app.kernel.log_handler import set_project_context
 
 logger = logging.getLogger("studioos.tasks")
 router = APIRouter(prefix="/api/projects/{project_id}/tasks", tags=["tasks"])
+
+_EVENT_MAP = {
+    "ASSIGNED": EVENT_TASK_ASSIGNED,
+    "IN_PROGRESS": EVENT_TASK_STARTED,
+    "APPROVED": EVENT_TASK_COMPLETED,
+    "MERGED": EVENT_TASK_COMPLETED,
+    "ARCHIVED": EVENT_TASK_COMPLETED,
+}
 
 
 @router.get("")
@@ -70,8 +78,9 @@ async def transition_task(project_id: int, task_id: int, body: TaskTransition, d
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    if not is_valid_transition(task.status, body.status):
-        raise HTTPException(status_code=400, detail=f"Invalid transition from {task.status} to {body.status}")
+    allowed, reason = can_transition_to(db, task.id, task.status, body.status)
+    if not allowed:
+        raise HTTPException(status_code=400, detail=reason)
 
     old_status = task.status
     task.status = body.status
@@ -81,13 +90,13 @@ async def transition_task(project_id: int, task_id: int, body: TaskTransition, d
     db.commit()
     db.refresh(task)
 
-    try:
-        await event_bus.emit_to_project(project_id, "task_updated", {
+    event_type = _EVENT_MAP.get(body.status)
+    if event_type:
+        await event_bus.emit_to_project(project_id, event_type, {
             "task_id": task.id,
             "title": task.title,
             "status": task.status,
-        })
-    except Exception as e:
-        logger.warning(f"Event bus emit failed: {e}")
+            "old_status": old_status,
+        }, db)
 
     return task

@@ -15,7 +15,7 @@ from app.org_intelligence.strategic_planner import LLMStrategicPlanner, DemoStra
 from app.org_intelligence.organization_architect import design_organization
 from app.org_intelligence.recruiter import define_roles
 from app.org_intelligence.agent_factory import create_agents, generate_initial_tasks
-from app.kernel.event_bus import event_bus
+from app.kernel.event_bus import event_bus, EVENT_PROJECT_CREATED, EVENT_STRATEGY_GENERATED, EVENT_ORG_CREATED, EVENT_AGENT_SPAWNED, EVENT_TASK_ASSIGNED
 from app.kernel.memory_system import memory_system
 from app.kernel.log_handler import set_project_context
 
@@ -162,7 +162,23 @@ async def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
     db.commit()
 
     try:
-        await event_bus.emit_to_project(project.id, "project_ready", {"project_id": project.id})
+        await event_bus.emit_to_project(project.id, EVENT_PROJECT_CREATED, {
+            "project_id": project.id, "name": project.name, "complexity": analysis.complexity,
+        }, db)
+        await event_bus.emit_to_project(project.id, EVENT_STRATEGY_GENERATED, {
+            "project_id": project.id, "summary": analysis.summary, "complexity": analysis.complexity,
+        }, db)
+        await event_bus.emit_to_project(project.id, EVENT_ORG_CREATED, {
+            "project_id": project.id, "departments": len(departments_map), "roles": len(role_defs),
+        }, db)
+        agent_count = len(agents_data)
+        await event_bus.emit_to_project(project.id, EVENT_AGENT_SPAWNED, {
+            "project_id": project.id, "count": agent_count,
+        }, db)
+        task_count = len(tasks_data)
+        await event_bus.emit_to_project(project.id, EVENT_TASK_ASSIGNED, {
+            "project_id": project.id, "count": task_count,
+        }, db)
     except Exception as e:
         logger.warning(f"Event bus emit failed: {e}")
 

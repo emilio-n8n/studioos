@@ -10,7 +10,7 @@ from app.models.project import Project
 from app.models.agent import Agent
 from app.models.pull_request_model import PullRequest
 from app.kernel import git_manager
-from app.kernel.event_bus import event_bus
+from app.kernel.event_bus import event_bus, EVENT_GIT_COMMIT_CREATED, EVENT_PR_CREATED, EVENT_PR_MERGED
 
 logger = logging.getLogger("studioos.git")
 router = APIRouter(prefix="/api/projects/{project_id}/git", tags=["git"])
@@ -64,9 +64,9 @@ async def commit_agent_work(
 
     try:
         sha = git_manager.commit_work(project_id, agent.name, body.files, body.message)
-        await event_bus.emit_to_project(project_id, "git_commit", {
-            "agent_id": body.agent_id, "hexsha": sha, "message": body.message,
-        })
+        await event_bus.emit_to_project(project_id, EVENT_GIT_COMMIT_CREATED, {
+            "agent_id": body.agent_id, "agent_name": agent.name, "hexsha": sha, "message": body.message,
+        }, db)
         return {"hexsha": sha, "message": body.message}
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -97,9 +97,9 @@ async def create_pull_request(
     db.commit()
     db.refresh(pr)
 
-    await event_bus.emit_to_project(project_id, "pr_created", {
+    await event_bus.emit_to_project(project_id, EVENT_PR_CREATED, {
         "pr_id": pr.id, "agent_id": body.agent_id, "branch": branch,
-    })
+    }, db)
     return {"pr_id": pr.id, "status": "open", "branch": branch}
 
 
@@ -140,9 +140,9 @@ async def merge_pull_request(project_id: int, pr_id: int, db: Session = Depends(
         pr.merged_at = datetime.now(timezone.utc)
         db.commit()
 
-        await event_bus.emit_to_project(project_id, "pr_merged", {
+        await event_bus.emit_to_project(project_id, EVENT_PR_MERGED, {
             "pr_id": pr.id, "branch": pr.source_branch,
-        })
+        }, db)
         return {"pr_id": pr.id, "status": "merged"}
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
