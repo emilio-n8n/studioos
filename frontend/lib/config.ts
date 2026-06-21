@@ -4,10 +4,11 @@ export function getApiBase(): string {
   }
   if (typeof window !== "undefined") {
     const m = window.location.hostname.match(
-      /^(.+?)-3000\.preview\.app\.github\.dev$/
+      /^(.+?)-3000\.(?:preview\.)?app\.github\.dev$/
     );
     if (m) {
-      return `https://${m[1]}-8000.preview.app.github.dev`;
+      const suffix = window.location.hostname.replace(/^.+?-3000/, "");
+      return `https://${m[1]}-8000${suffix}`;
     }
   }
   return "http://localhost:8000";
