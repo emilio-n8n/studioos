@@ -11,6 +11,9 @@ import TaskBoard from "@/components/project/TaskBoard";
 import AnalysisReport from "@/components/project/AnalysisReport";
 import GenerationPanel from "@/components/generation/GenerationPanel";
 import LogPanel from "@/components/logs/LogPanel";
+import MemoryGraph from "@/components/memory/MemoryGraph";
+import ReviewPanel from "@/components/review/ReviewPanel";
+import GitPanel from "@/components/git/GitPanel";
 import {
   getProject,
   getOrgTree,
@@ -22,7 +25,7 @@ import {
 } from "@/lib/api";
 import type { Project, Dashboard, OrgTree, Task, StrategicDecision, Organization } from "@/lib/types";
 
-type Tab = "dashboard" | "organization" | "tasks" | "analysis" | "generation" | "logs";
+type Tab = "dashboard" | "organization" | "tasks" | "analysis" | "generation" | "logs" | "memory" | "reviews" | "git";
 
 export default function ProjectPage() {
   const params = useParams();
@@ -94,6 +97,9 @@ export default function ProjectPage() {
     { key: "organization", label: "Organigramme" },
     { key: "tasks", label: "Tâches" },
     { key: "analysis", label: "Rapport Stratégique" },
+    { key: "memory", label: "Mémoire" },
+    { key: "reviews", label: "Reviews" },
+    { key: "git", label: "Git" },
     { key: "generation", label: "Génération" },
     { key: "logs", label: "Logs" },
   ];
@@ -194,6 +200,18 @@ export default function ProjectPage() {
         )}
         {activeTab === "analysis" && !project.analysis && (
           <p className="text-sm text-zinc-400">Analyse non disponible</p>
+        )}
+
+        {activeTab === "memory" && (
+          <MemoryGraph projectId={projectId} />
+        )}
+
+        {activeTab === "reviews" && (
+          <ReviewPanel projectId={projectId} />
+        )}
+
+        {activeTab === "git" && (
+          <GitPanel projectId={projectId} />
         )}
 
         {activeTab === "generation" && (

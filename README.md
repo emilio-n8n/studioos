@@ -1,6 +1,10 @@
-# StudioOS v3
+# StudioOS
 
-**Autonomous Organization System** — Describe a project, and StudioOS builds a complete organization (departments, roles, agents, tasks) and generates a production-ready website.
+**AI-Native Operating System for Building Organizations**
+
+Describe a project in natural language. StudioOS analyzes it, designs a complete organization (departments, roles, agents, tasks), runs the agents through a production pipeline with review and version control, and delivers the result — all traceable in a real-time dashboard.
+
+→ You don't prompt an AI. You build a company of AI agents.
 
 ## Quick Start
 
@@ -35,15 +39,15 @@ studioos/
 ├── backend/          # FastAPI + SQLAlchemy
 │   ├── app/
 │   │   ├── api/          # REST + WebSocket endpoints
-│   │   ├── models/       # SQLAlchemy models
+│   │   ├── models/       # SQLAlchemy models (Project, Organization, MemoryNode, Review, PullRequest...)
 │   │   ├── schemas/      # Pydantic schemas
-│   │   ├── kernel/       # EventBus, TaskEngine, MemorySystem
+│   │   ├── kernel/       # EventBus, GitManager, MemorySystem, TaskEngine
 │   │   ├── org_intelligence/  # StrategicPlanner, Recruiter, AgentFactory
 │   │   └── workforce/    # AgentExecutor, FileManager
 │   └── scripts/seed.py   # Demo data seeder
 ├── frontend/         # Next.js 16 (App Router)
-│   ├── app/              # Pages
-│   └── components/       # Dashboard, OrgChart, GenerationPanel
+│   ├── app/              # Pages (Home, Project)
+│   └── components/       # Dashboard, OrgChart, MemoryGraph, ReviewPanel, GitPanel
 ├── docker-compose.yml
 ├── Makefile
 └── install.sh
@@ -77,11 +81,13 @@ All configuration is via environment variables (see `backend/.env.example`):
 ## How It Works
 
 1. **Describe** your project in natural language
-2. **Strategic Planner** (LLM or demo/Rule-based) analyzes and produces: objectives, constraints, risks, complexity, suggested departments
-3. **Organization Architect** designs the org structure
-4. **Recruiter** & **Agent Factory** define roles and assign agents with tasks
-5. **Agent Executor** generates a complete website (HTML/CSS/JS)
-6. Preview the generated site directly in the dashboard
+2. **Strategic Planner** (LLM or demo/Rule-based) analyzes and produces: objectives, constraints, risks, complexity, suggested departments — all stored as **Strategic Decisions**
+3. **Organization Architect** designs the org structure (departments, hierarchy)
+4. **Recruiter** & **Agent Factory** define roles (with summary, permissions, metrics, skills) and assign agents with initial tasks
+5. Agents execute tasks and **commit work to git** on their own branches (`agent/{name}`)
+6. **Review Layer** — worker submits output, reviewer approves or requests changes, lead merges
+7. **Memory Graph** — all decisions, constraints, and artifacts are versioned and shared across every agent
+8. Preview results (generated site, git log, PRs) directly in the dashboard
 
 ## API
 
@@ -94,6 +100,17 @@ All configuration is via environment variables (see `backend/.env.example`):
 | GET | `/api/projects/{id}/organization/tree` | Org chart tree |
 | GET | `/api/projects/{id}/tasks/dashboard` | Dashboard stats |
 | PATCH | `/api/projects/{id}/tasks/{tid}/status` | Transition task |
+| GET/POST | `/api/projects/{id}/memory` | Memory Graph CRUD |
+| GET | `/api/projects/{id}/memory/graph` | Memory graph with edges |
+| GET/POST | `/api/projects/{id}/reviews` | Review management |
+| POST | `/api/projects/{id}/reviews/{rid}/approve` | Approve review |
+| POST | `/api/projects/{id}/reviews/{rid}/request-changes` | Request changes |
+| GET | `/api/projects/{id}/git/log` | Git commit log |
+| GET | `/api/projects/{id}/git/branches` | List branches |
+| POST | `/api/projects/{id}/git/commit` | Agent commits work |
+| POST | `/api/projects/{id}/git/pr` | Create PR |
+| GET | `/api/projects/{id}/git/prs` | List PRs |
+| POST | `/api/projects/{id}/git/pr/{pid}/merge` | Merge PR |
 | POST | `/api/projects/{id}/generate` | Generate website |
 | GET | `/api/projects/{id}/output` | List generated files |
 | WS | `/ws/projects/{id}` | Real-time events |

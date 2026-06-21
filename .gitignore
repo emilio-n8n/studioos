@@ -27,6 +27,7 @@ build/
 
 # Generated output
 output/
+repos/
 
 # Project
 *.log

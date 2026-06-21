@@ -128,3 +128,32 @@ export interface OrgEdge {
   source: string;
   target: string;
 }
+
+export interface MemoryNodeData {
+  id: number;
+  project_id: number;
+  agent_id: number | null;
+  parent_id: number | null;
+  key: string;
+  value: Record<string, unknown>;
+  type: string;
+  tags: string[];
+  status: string;
+  version: number;
+  summary: string | null;
+  created_by: string | null;
+  approved_by: string | null;
+  superseded_by: number | null;
+  created_at: string;
+}
+
+export interface MemoryEdgeData {
+  source: number;
+  target: number;
+  type: string;
+}
+
+export interface MemoryGraphData {
+  nodes: MemoryNodeData[];
+  edges: MemoryEdgeData[];
+}

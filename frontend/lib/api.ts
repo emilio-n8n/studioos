@@ -74,3 +74,7 @@ export function generateWebsite(projectId: number) {
 export function getDecisions(projectId: number) {
   return request<import("./types").StrategicDecision[]>(`/api/projects/${projectId}/decisions`);
 }
+
+export function getMemoryGraph(projectId: number) {
+  return request<import("./types").MemoryGraphData>(`/api/projects/${projectId}/memory/graph`);
+}
