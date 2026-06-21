@@ -39,7 +39,7 @@ allow_creds = "*" not in cors_origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins if not allow_creds else ["*"],
-    allow_origin_regex=r"https://.*\.preview\.app\.github\.dev",
+    allow_origin_regex=r"https://.*\.(?:preview\.)?app\.github\.dev",
     allow_credentials=allow_creds,
     allow_methods=["*"],
     allow_headers=["*"],
