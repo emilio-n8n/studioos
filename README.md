@@ -41,7 +41,7 @@ studioos/
 │   │   ├── api/          # REST + WebSocket endpoints
 │   │   ├── models/       # SQLAlchemy models (Project, Organization, MemoryNode, Review, PullRequest...)
 │   │   ├── schemas/      # Pydantic schemas
-│   │   ├── kernel/       # EventBus, EventStore, DAGEngine, GitManager, MemorySystem, TaskEngine
+│   │   ├── kernel/       # EventBus, EventStore, DAGEngine, Scheduler, MemorySystem, MemoryReplay, TaskEngine, GitManager
 │   │   ├── org_intelligence/  # StrategicPlanner, Recruiter, AgentFactory
 │   │   └── workforce/    # AgentExecutor, FileManager
 │   └── scripts/seed.py   # Demo data seeder
@@ -148,7 +148,21 @@ If the issue persists, check the **Ports** tab — make sure ports 3000 and 8000
 7. **Memory Graph** — all decisions, constraints, and artifacts are versioned and shared across every agent. Immutable: new versions append, values never mutate
 8. **Event-Sourced Kernel** — every action emits a typed event persisted in an append-only event log, replayable for full traceability
 9. **DAG Execution** — tasks with dependencies are topologically sorted and executed in parallel batches
-10. Preview results (generated site, git log, PRs) directly in the dashboard
+10. **Pipeline Trigger** — `POST /pipeline/run` orchestrates the full flow: planner → architect → scheduler → executor → output generation
+11. **Memory Replay** — reconstruct system state at any point from the event log via snapshot API
+12. Preview results (generated site, git log, PRs) directly in the dashboard
+
+## Memory Replay
+
+System state can be reconstructed from the event log at any point:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| (built-in) | `MemoryReplay.get_snapshot(project_id)` | Build current state dict from all events |
+| (built-in) | `MemoryReplay.get_snapshot_at(project_id, timestamp)` | State at a specific point in time |
+| (built-in) | `MemoryReplay.replay(project_id)` | Raw ordered event list |
+
+The snapshot includes: project info, strategy, organization, agents, tasks (with statuses), reviews, and memories.
 
 ## Event System (V8 Kernel)
 
@@ -185,6 +199,7 @@ Tasks with `depends_on` dependencies are automatically topologically sorted. The
 | GET | `/api/projects/{id}/organization/tree` | Org chart tree |
 | GET | `/api/projects/{id}/tasks/dashboard` | Dashboard stats |
 | PATCH | `/api/projects/{id}/tasks/{tid}/status` | Transition task (review-gated) |
+| POST | `/api/projects/{id}/pipeline/run` | Run full execution pipeline (DAG scheduler → output) |
 | GET/POST | `/api/projects/{id}/memory` | Memory Graph CRUD (append-only) |
 | GET | `/api/projects/{id}/memory/graph` | Memory graph with edges |
 | GET/POST | `/api/projects/{id}/reviews` | Review management |
