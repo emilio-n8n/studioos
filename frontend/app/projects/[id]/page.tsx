@@ -14,6 +14,7 @@ import LogPanel from "@/components/logs/LogPanel";
 import MemoryGraph from "@/components/memory/MemoryGraph";
 import ReviewPanel from "@/components/review/ReviewPanel";
 import GitPanel from "@/components/git/GitPanel";
+import DAGView from "@/components/pipeline/DAGView";
 import {
   getProject,
   getOrgTree,
@@ -23,11 +24,12 @@ import {
   generateWebsite,
   getDecisions,
   runPipeline,
+  getPipelineDag,
 } from "@/lib/api";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import type { Project, Dashboard, OrgTree, Task, StrategicDecision, Organization } from "@/lib/types";
 
-type Tab = "dashboard" | "organization" | "tasks" | "analysis" | "generation" | "logs" | "memory" | "reviews" | "git";
+type Tab = "dashboard" | "organization" | "tasks" | "analysis" | "generation" | "logs" | "memory" | "reviews" | "git" | "pipeline";
 
 export default function ProjectPage() {
   const params = useParams();
@@ -48,18 +50,20 @@ export default function ProjectPage() {
   const [genError, setGenError] = useState<string | null>(null);
   const [runningPipeline, setRunningPipeline] = useState(false);
   const [pipelineStatus, setPipelineStatus] = useState<string | null>(null);
+  const [dagData, setDagData] = useState<{ nodes: unknown[]; edges: unknown[] } | null>(null);
 
   const loadData = useCallback(async () => {
     if (isNaN(projectId)) return;
     setError(null);
     try {
-      const [proj, dt, ot, tk, og, dec] = await Promise.all([
+      const [proj, dt, ot, tk, og, dec, dag] = await Promise.all([
         getProject(projectId),
         getDashboard(projectId),
         getOrgTree(projectId),
         listTasks(projectId),
         getOrganization(projectId),
         getDecisions(projectId),
+        getPipelineDag(projectId).catch(() => null),
       ]);
       setProject(proj);
       setDashboard(dt);
@@ -67,6 +71,7 @@ export default function ProjectPage() {
       setTasks(tk);
       setOrg(og);
       setDecisions(dec);
+      if (dag) setDagData(dag);
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : "Failed to load project");
@@ -132,6 +137,7 @@ export default function ProjectPage() {
     { key: "memory", label: "Mémoire" },
     { key: "reviews", label: "Reviews" },
     { key: "git", label: "Git" },
+    { key: "pipeline", label: "Pipeline" },
     { key: "generation", label: "Génération" },
     { key: "logs", label: "Logs" },
   ];
@@ -244,6 +250,27 @@ export default function ProjectPage() {
 
         {activeTab === "git" && (
           <GitPanel projectId={projectId} />
+        )}
+
+        {activeTab === "pipeline" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-zinc-900">DAG d'exécution</h2>
+              <button
+                onClick={loadData}
+                className="rounded-lg bg-zinc-100 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-200"
+              >
+                Actualiser
+              </button>
+            </div>
+            {dagData ? (
+              <DAGView nodes={dagData.nodes as any} edges={dagData.edges as any} />
+            ) : (
+              <div className="flex h-64 items-center justify-center rounded-xl border border-zinc-200 bg-white text-sm text-zinc-400">
+                Aucune tâche — créez un projet puis lancez le pipeline
+              </div>
+            )}
+          </div>
         )}
 
         {activeTab === "generation" && (

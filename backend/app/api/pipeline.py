@@ -30,6 +30,53 @@ logger = logging.getLogger("studioos.pipeline")
 router = APIRouter(prefix="/api/projects/{project_id}/pipeline", tags=["pipeline"])
 
 
+STATUS_COLORS = {
+    "TODO": "#94a3b8",
+    "ASSIGNED": "#60a5fa",
+    "IN_PROGRESS": "#fbbf24",
+    "REVIEW": "#f97316",
+    "APPROVED": "#22c55e",
+    "MERGED": "#14b8a6",
+    "COMPLETED": "#22c55e",
+    "ARCHIVED": "#64748b",
+    "FAILED": "#ef4444",
+}
+
+
+@router.get("/dag")
+def get_pipeline_dag(project_id: int, db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    tasks = db.query(Task).filter(Task.project_id == project_id).all()
+    nodes = []
+    edges = []
+    for t in tasks:
+        color = STATUS_COLORS.get(t.status, "#94a3b8")
+        agent_name = t.assigned_agent.name if t.assigned_agent else None
+        nodes.append({
+            "id": f"task-{t.id}",
+            "type": "taskNode",
+            "position": {"x": 0, "y": 0},
+            "data": {
+                "label": t.title,
+                "status": t.status,
+                "priority": t.priority,
+                "agent": agent_name,
+                "color": color,
+            },
+        })
+        for dep in (t.depends_on or []):
+            edges.append({
+                "id": f"dep-{dep}-{t.id}",
+                "source": f"task-{dep}",
+                "target": f"task-{t.id}",
+                "type": "smoothstep",
+                "animated": True,
+            })
+    return {"nodes": nodes, "edges": edges}
+
+
 @router.post("/run")
 async def run_pipeline(project_id: int, db: Session = Depends(get_db)):
     set_project_context(project_id)

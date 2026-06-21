@@ -95,3 +95,9 @@ export function runPipeline(projectId: number) {
     300000
   );
 }
+
+export function getPipelineDag(projectId: number) {
+  return request<{ nodes: unknown[]; edges: unknown[] }>(
+    `/api/projects/${projectId}/pipeline/dag`
+  );
+}
