@@ -1,9 +1,7 @@
 "use client";
 import { useEffect, useRef, useCallback } from "react";
 
-const WS_BASE =
-  process.env.NEXT_PUBLIC_WS_URL ||
-  (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/^http/, "ws");
+import { WS_BASE } from "../lib/config";
 
 export function useWebSocket(
   projectId: number | null,

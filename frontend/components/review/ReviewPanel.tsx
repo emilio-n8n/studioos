@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { API_BASE } from "@/lib/config";
 
 interface Review {
   id: number;
@@ -26,7 +27,7 @@ const STATUS_STYLES: Record<string, string> = {
   changes_requested: "bg-red-100 text-red-700 border-red-200",
 };
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 
 export default function ReviewPanel({ projectId }: Props) {
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -36,7 +37,7 @@ export default function ReviewPanel({ projectId }: Props) {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/projects/${projectId}/reviews`);
+      const res = await fetch(`${API_BASE}/api/projects/${projectId}/reviews`);
       if (res.ok) setReviews(await res.json());
     } catch {
       // ignore
@@ -51,7 +52,7 @@ export default function ReviewPanel({ projectId }: Props) {
 
   const handleApprove = async (reviewId: number) => {
     try {
-      await fetch(`${API}/api/projects/${projectId}/reviews/${reviewId}/approve`, {
+      await fetch(`${API_BASE}/api/projects/${projectId}/reviews/${reviewId}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ approved_by: "Lead", comment: "Approved" }),
@@ -65,7 +66,7 @@ export default function ReviewPanel({ projectId }: Props) {
   const handleRequestChanges = async (reviewId: number, comment: string) => {
     if (!comment) return;
     try {
-      await fetch(`${API}/api/projects/${projectId}/reviews/${reviewId}/request-changes`, {
+      await fetch(`${API_BASE}/api/projects/${projectId}/reviews/${reviewId}/request-changes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ comment }),

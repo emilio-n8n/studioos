@@ -78,6 +78,65 @@ All configuration is via environment variables (see `backend/.env.example`):
 | `LOG_LEVEL` | `INFO` | Logging level |
 | `OUTPUT_DIR` | `output` | Directory for generated websites |
 
+### Frontend (API URL)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NEXT_PUBLIC_API_URL` | Auto-detected | Backend API URL (see Codespaces section below) |
+
+The frontend auto-detects the backend URL in order of priority:
+
+1. `NEXT_PUBLIC_API_URL` environment variable (explicit override)
+2. GitHub Codespaces: constructed from the forwarded port URL
+3. `http://localhost:8000` (local development)
+
+WebSocket URL (`WS_BASE`) is derived automatically from the API URL.
+
+## GitHub Codespaces
+
+StudioOS runs in GitHub Codespaces with zero configuration.
+
+### Quick start
+
+1. Open the repository in Codespaces
+2. Wait for the `postCreateCommand` to finish (runs `install.sh`)
+3. In the terminal, start both services:
+
+```bash
+make dev
+```
+
+4. When prompted by VS Code, click **Open in Browser** for port 3000 (frontend).
+
+Or manually open the **Ports** tab and click the globe icon next to port 3000.
+
+### How it works
+
+The frontend automatically detects it is running in Codespaces by inspecting the browser's URL (`*.preview.app.github.dev`). It constructs the correct backend URL to match the forwarded port 8000 — no manual configuration needed.
+
+If behind a custom domain or proxy, set the environment variable explicitly:
+
+```bash
+# From the Codespaces terminal
+echo "NEXT_PUBLIC_API_URL=https://your-custom-url" >> frontend/.env.local
+```
+
+### Troubleshooting
+
+**Frontend cannot reach backend (ERR_CONNECTION_REFUSED)**
+
+The most common cause is the backend not running. Ensure both services are started:
+
+```bash
+# In one terminal
+cd backend && uvicorn app.main:app --port 8000 --reload
+
+# In another terminal
+cd frontend && npm run dev
+```
+
+If the issue persists, check the **Ports** tab — make sure ports 3000 and 8000 are both forwarded and set to **Public** if you need access from outside the Codespace.
+
 ## How It Works
 
 1. **Describe** your project in natural language

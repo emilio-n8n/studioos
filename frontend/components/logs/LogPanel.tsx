@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { WS_BASE } from "@/lib/config";
 
 interface LogEntry {
   id: number;
@@ -22,10 +23,7 @@ const LEVEL_COLORS: Record<string, string> = {
   CRITICAL: "text-red-700 font-bold",
 };
 
-const WS_BASE = (
-  process.env.NEXT_PUBLIC_WS_URL ||
-  (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/^http/, "ws")
-);
+
 
 export default function LogPanel({ projectId }: Props) {
   const [logs, setLogs] = useState<LogEntry[]>([]);

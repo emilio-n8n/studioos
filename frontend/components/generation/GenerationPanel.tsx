@@ -1,5 +1,7 @@
 "use client";
 
+import { API_BASE } from "@/lib/config";
+
 interface Props {
   generating: boolean;
   generatedUrl: string | null;
@@ -13,7 +15,7 @@ export default function GenerationPanel({
   genError,
   onGenerate,
 }: Props) {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const apiBase = API_BASE;
 
   let previewUrl: string | null = null;
   if (generatedUrl) {
