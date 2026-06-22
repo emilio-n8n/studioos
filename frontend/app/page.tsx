@@ -25,11 +25,11 @@ export default function Home() {
     loadProjects();
   }, [loadProjects]);
 
-  const handleSubmit = async (description: string, apiKey: string, provider?: string, model?: string) => {
+  const handleSubmit = async (description: string, apiKey: string, provider?: string, model?: string, outputPath?: string) => {
     setLoading(true);
     setError(null);
     try {
-      const project = await createProject(description, apiKey, provider, model);
+      const project = await createProject(description, apiKey, provider, model, undefined, outputPath);
       router.push(`/projects/${project.id}`);
     } catch (err: any) {
       setError(err.message || "Erreur lors de l'analyse");

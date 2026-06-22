@@ -5,6 +5,7 @@ export interface Project {
   status: string;
   complexity: string | null;
   analysis: ProjectAnalysis | null;
+  output_path?: string | null;
   created_at: string;
 }
 

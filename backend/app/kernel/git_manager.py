@@ -133,3 +133,37 @@ def merge_branch(project_id: int, source_branch: str, target_branch: str = "main
     result = repo.git.merge(source_branch)
     logger.info(f"Merged {source_branch} into {target_branch}")
     return result
+
+
+def create_pr(
+    project_id: int,
+    agent_name: str,
+    title: str,
+    description: str = "",
+) -> dict:
+    from app.models.pull_request_model import PullRequest
+    from app.database import SessionLocal
+    from app.models.agent import Agent
+
+    db = SessionLocal()
+    try:
+        branch = f"agent/{agent_name.replace(' ', '_').lower()}"
+        agent = db.query(Agent).filter(
+            Agent.name == agent_name,
+            Agent.project_id == project_id,
+        ).first()
+        pr = PullRequest(
+            project_id=project_id,
+            agent_id=agent.id if agent else None,
+            source_branch=branch,
+            target_branch="main",
+            status="open",
+            title=title,
+            description=description,
+        )
+        db.add(pr)
+        db.commit()
+        db.refresh(pr)
+        return {"pr_id": pr.id, "status": "open", "branch": branch}
+    finally:
+        db.close()

@@ -49,6 +49,8 @@ async def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
         openai_api_key=body.openai_api_key,
         analysis=analysis.to_dict(),
     )
+    if body.output_path:
+        project.output_path = body.output_path
     db.add(project)
     db.flush()
     set_project_context(project.id)

@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 interface Props {
-  onSubmit: (description: string, apiKey: string, provider: string, model?: string) => Promise<void>;
+  onSubmit: (description: string, apiKey: string, provider: string, model?: string, outputPath?: string) => Promise<void>;
   loading: boolean;
 }
 
@@ -28,11 +28,12 @@ export default function ProjectForm({ onSubmit, loading }: Props) {
   const [apiKey, setApiKey] = useState("");
   const [provider, setProvider] = useState("openai");
   const [model, setModel] = useState("");
+  const [outputPath, setOutputPath] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!description.trim() || !apiKey.trim()) return;
-    await onSubmit(description.trim(), apiKey.trim(), provider, model || undefined);
+    await onSubmit(description.trim(), apiKey.trim(), provider, model || undefined, outputPath || undefined);
   };
 
   return (
@@ -109,6 +110,20 @@ export default function ProjectForm({ onSubmit, loading }: Props) {
               : "Utilisez 'demo' pour un essai sans clé"
             }
           </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-zinc-700">
+            Dossier de sortie (optionnel)
+          </label>
+          <input
+            type="text"
+            value={outputPath}
+            onChange={(e) => setOutputPath(e.target.value)}
+            placeholder="/Users/moi/studioos-output"
+            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          />
+          <p className="mt-1 text-xs text-zinc-400">Chemin absolu sur votre machine. Laissez vide pour utiliser le dossier par défaut.</p>
         </div>
 
         <button

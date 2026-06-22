@@ -33,10 +33,10 @@ export function getProject(id: number) {
   return request<import("./types").Project>(`/api/projects/${id}`);
 }
 
-export function createProject(description: string, openai_api_key: string, provider?: string, model?: string, name?: string) {
+export function createProject(description: string, openai_api_key: string, provider?: string, model?: string, name?: string, outputPath?: string) {
   return request<import("./types").Project>("/api/projects", {
     method: "POST",
-    body: JSON.stringify({ description, openai_api_key, provider, model, name }),
+    body: JSON.stringify({ description, openai_api_key, provider, model, name, output_path: outputPath }),
   }, 180000);
 }
 

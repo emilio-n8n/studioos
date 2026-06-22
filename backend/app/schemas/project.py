@@ -9,6 +9,7 @@ class ProjectCreate(BaseModel):
     openai_api_key: str = Field(min_length=1, max_length=200)
     provider: str = Field(default="openai", pattern=r"^(openai|opencode-go)$")
     model: str | None = None
+    output_path: str | None = None
 
 
 class ProjectResponse(BaseModel):
@@ -20,6 +21,7 @@ class ProjectResponse(BaseModel):
     provider: str
     model: str | None
     analysis: dict | None
+    output_path: str | None = None
     created_at: datetime
 
     class Config:

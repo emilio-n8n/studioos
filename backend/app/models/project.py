@@ -18,6 +18,7 @@ class Project(Base):
     model = Column(String(100), nullable=True)
     openai_api_key = Column(String(255), nullable=True)
     analysis = Column(JSON, nullable=True)
+    output_path = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     organization = relationship("Organization", back_populates="project", uselist=False, cascade="all, delete-orphan")

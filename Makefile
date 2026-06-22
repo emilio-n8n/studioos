@@ -18,7 +18,7 @@ build:
 
 # ── Testing ──
 test:
-	cd backend && python -m pytest tests/ -v 2>/dev/null || echo "No tests yet"
+	cd backend && python -m pytest tests/ -v --tb=short
 
 # ── Linting ──
 lint:

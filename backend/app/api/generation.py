@@ -95,8 +95,8 @@ async def generate_project(project_id: int, db: Session = Depends(get_db)):
             {"path": "js/main.js", "content": _demo_js()},
         ]
 
-    output_dir = await asyncio.to_thread(file_manager.save_website, project_id, files)
-    output_url = await asyncio.to_thread(file_manager.get_output_url, project_id)
+    output_dir = await asyncio.to_thread(file_manager.save_website, project_id, files, project.output_path)
+    output_url = await asyncio.to_thread(file_manager.get_output_url, project_id, project.output_path)
     logger.info(f"Website saved to {output_dir}")
 
     try:

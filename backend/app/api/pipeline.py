@@ -31,6 +31,9 @@ from app.integration.base import TaskResult
 from app.workforce.agent_executor import generate_website_files
 from app.workforce.file_manager import file_manager
 from app.api.generation import _demo_html, _demo_css, _demo_js
+from app.workforce.task_executor import generate_task_output
+from app.kernel import git_manager
+from app.models.pull_request_model import PullRequest
 
 logger = logging.getLogger("studioos.pipeline")
 router = APIRouter(prefix="/api/projects/{project_id}/pipeline", tags=["pipeline"])
@@ -136,14 +139,7 @@ async def _execute_pipeline(project: Project, db: Session) -> dict:
         "stage": "dag_initialized", "tasks": total,
     }, db)
 
-    # Initialize dispatcher with configured providers
-    disp = _build_dispatcher()
-
-    project_context = {
-        "project_id": project_id,
-        "project_name": project.name,
-        "project_description": project.description,
-    }
+    is_demo = project.openai_api_key and project.openai_api_key.strip().lower() == "demo"
 
     while not scheduler.is_done():
         ready = scheduler.get_ready()
@@ -162,37 +158,31 @@ async def _execute_pipeline(project: Project, db: Session) -> dict:
             }, db)
         db.commit()
 
-        # Dispatch all ready tasks in parallel via the dispatcher
-        results = await disp.dispatch_batch(ready, project_context, db)
-
-        # Process results
-        for i, task_data in enumerate(ready):
+        # Execute each ready task
+        for task_data in ready:
             tid = task_data["id"]
-            result = results[i] if i < len(results) else TaskResult(
-                run_id="", status="failed", output={},
-                error="No result returned",
-            )
-
             task = db.query(Task).filter(Task.id == tid).first()
             if not task:
                 continue
-
-            if result.status == "completed":
+            try:
+                if is_demo:
+                    await _execute_demo_task(task, project, db)
+                else:
+                    await _execute_llm_task(task, project, db)
                 task.status = "COMPLETED"
                 completed_ids.add(tid)
                 scheduler.mark_completed(tid)
                 await event_bus.emit_to_project(project_id, EVENT_TASK_COMPLETED, {
                     "task_id": tid, "title": task.title, "status": "COMPLETED",
                 }, db)
-            else:
+            except Exception as e:
                 task.status = "FAILED"
                 failed_ids.add(tid)
-                logger.error(f"Task #{tid} failed: {result.error}")
+                logger.error(f"Task #{tid} failed: {e}")
             db.commit()
 
-    # Generate output (only if at least some tasks completed)
+    # Generate overall project output
     if completed_ids:
-        is_demo = project.openai_api_key and project.openai_api_key.strip().lower() == "demo"
         await _generate_output(project, db, is_demo)
 
     project.status = "completed" if not failed_ids else "completed_with_errors"
@@ -203,6 +193,99 @@ async def _execute_pipeline(project: Project, db: Session) -> dict:
         "tasks_failed": len(failed_ids),
         "tasks_total": total,
     }
+
+
+async def _execute_demo_task(task: Task, project: Project, db: Session):
+    agent = db.query(Agent).filter(Agent.id == task.assigned_agent_id).first()
+    role = db.query(Role).filter(Role.id == agent.role_id).first() if agent else None
+    dept = db.query(Department).filter(Department.id == role.department_id).first() if role else None
+
+    files = [{
+        "path": f"output/{task.id}/report.md",
+        "content": (
+            f"# {task.title}\n\n"
+            f"Completed by {agent.name if agent else 'unknown'} "
+            f"({role.title if role else 'unknown'}) "
+            f"in {dept.name if dept else 'unknown'}.\n\n"
+            f"Demo execution \u2014 no real LLM call."
+        ),
+    }]
+
+    await _save_and_commit(task, project, agent, files, db)
+
+
+async def _execute_llm_task(task: Task, project: Project, db: Session):
+    agent = db.query(Agent).filter(Agent.id == task.assigned_agent_id).first()
+    role = db.query(Role).filter(Role.id == agent.role_id).first() if agent else None
+    dept = db.query(Department).filter(Department.id == role.department_id).first() if role else None
+
+    project_summary = (project.analysis or {}).get("summary", "")
+
+    files = await generate_task_output(
+        task_title=task.title,
+        task_description=task.description or "",
+        role_title=role.title if role else "Worker",
+        department_name=dept.name if dept else "General",
+        project_name=project.name,
+        project_summary=project_summary,
+        task_id=task.id,
+        api_key=project.openai_api_key or "",
+        provider=project.provider or "openai",
+        model=project.model or None,
+    )
+
+    await _save_and_commit(task, project, agent, files, db)
+
+
+async def _save_and_commit(
+    task: Task,
+    project: Project,
+    agent: Agent | None,
+    files: list[dict],
+    db: Session,
+):
+    import asyncio
+
+    agent_name = agent.name if agent else "worker"
+    output_path = project.output_path if project.output_path else None
+
+    await asyncio.to_thread(
+        file_manager.save_website, project.id, files, output_path
+    )
+
+    try:
+        sha = git_manager.commit_work(
+            project.id, agent_name,
+            {f["path"]: f["content"] for f in files},
+            f"Task #{task.id}: {task.title}",
+        )
+        logger.info(f"Task #{task.id} committed by {agent_name}: {sha[:8]}")
+
+        branch = f"agent/{agent_name.replace(' ', '_').lower()}"
+        pr = PullRequest(
+            project_id=project.id,
+            agent_id=agent.id if agent else None,
+            source_branch=branch,
+            target_branch="main",
+            status="open",
+            title=f"Task #{task.id}: {task.title}",
+            description=f"Auto-generated PR for task #{task.id} by {agent_name}",
+        )
+        db.add(pr)
+        db.commit()
+        db.refresh(pr)
+        logger.info(f"Auto PR #{pr.id} created for task #{task.id}")
+
+        try:
+            git_manager.merge_branch(project.id, branch, "main")
+            pr.status = "merged"
+            db.commit()
+            logger.info(f"Auto PR #{pr.id} merged for task #{task.id}")
+        except Exception as merge_err:
+            logger.warning(f"Auto-merge failed for PR #{pr.id}: {merge_err}")
+
+    except Exception as e:
+        logger.warning(f"Git commit failed for task #{task.id}: {e}")
 
 
 def _build_dispatcher() -> TaskDispatcher:
@@ -259,6 +342,6 @@ async def _generate_output(project: Project, db: Session, is_demo: bool):
         )
 
     import asyncio
-    output_dir = await asyncio.to_thread(file_manager.save_website, project_id, files)
-    output_url = await asyncio.to_thread(file_manager.get_output_url, project_id)
+    output_dir = await asyncio.to_thread(file_manager.save_website, project_id, files, project.output_path)
+    output_url = await asyncio.to_thread(file_manager.get_output_url, project_id, project.output_path)
     logger.info(f"Pipeline output generated at {output_dir}")

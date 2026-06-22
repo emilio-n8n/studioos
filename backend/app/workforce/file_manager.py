@@ -19,24 +19,25 @@ class FileManager:
             raise PathTraversalError(f"Path traversal blocked: {relative_path}")
         return full_path
 
-    def save_website(self, project_id: int, files: list[dict]) -> str:
-        project_dir = os.path.join(self.base_dir, str(project_id))
+    def _get_project_dir(self, project_id: int, output_path: str | None = None) -> str:
+        if output_path:
+            return os.path.abspath(output_path)
+        return os.path.join(self.base_dir, str(project_id))
+
+    def save_website(self, project_id: int, files: list[dict], output_path: str | None = None) -> str:
+        project_dir = self._get_project_dir(project_id, output_path)
         os.makedirs(project_dir, exist_ok=True)
-
         for file_entry in files:
-            file_path = self._safe_path(project_id, file_entry["path"])
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            with open(file_path, "w", encoding="utf-8") as f:
+            full_path = os.path.join(project_dir, file_entry["path"])
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            with open(full_path, "w", encoding="utf-8") as f:
                 f.write(file_entry["content"])
-            logger.info(f"Saved: {file_path}")
-
         return project_dir
 
-    def list_files(self, project_id: int) -> list[dict]:
-        project_dir = os.path.join(self.base_dir, str(project_id))
+    def list_files(self, project_id: int, output_path: str | None = None) -> list[dict]:
+        project_dir = self._get_project_dir(project_id, output_path)
         if not os.path.exists(project_dir):
             return []
-
         result = []
         for root, dirs, files in os.walk(project_dir):
             for f in files:
@@ -49,8 +50,8 @@ class FileManager:
                 result.append({"path": rel_path, "content": content})
         return result
 
-    def get_output_url(self, project_id: int) -> str:
-        project_dir = os.path.join(self.base_dir, str(project_id))
+    def get_output_url(self, project_id: int, output_path: str | None = None) -> str:
+        project_dir = self._get_project_dir(project_id, output_path)
         index_path = os.path.join(project_dir, "index.html")
         if os.path.exists(index_path):
             return f"/output/{project_id}/index.html"
