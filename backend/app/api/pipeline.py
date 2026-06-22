@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
+from app.config import settings
 from app.models.project import Project
 from app.models.organization import Organization
 from app.models.department import Department
@@ -22,6 +23,11 @@ from app.kernel.event_bus import (
 from app.kernel.scheduler import Scheduler
 from app.kernel.memory_system import memory_system
 from app.kernel.log_handler import set_project_context
+from app.integration.native_provider import NativeProvider
+from app.integration.mock_provider import MockProvider
+from app.integration.registry import registry
+from app.integration.dispatcher import TaskDispatcher
+from app.integration.base import TaskResult
 from app.workforce.agent_executor import generate_website_files
 from app.workforce.file_manager import file_manager
 from app.api.generation import _demo_html, _demo_css, _demo_js
@@ -114,6 +120,7 @@ async def _execute_pipeline(project: Project, db: Session) -> dict:
         {
             "id": t.id,
             "title": t.title,
+            "description": t.description or "",
             "depends_on": t.depends_on or [],
             "status": t.status,
         }
@@ -122,70 +129,93 @@ async def _execute_pipeline(project: Project, db: Session) -> dict:
 
     scheduler = Scheduler(task_dicts)
     completed_ids: set[int] = set()
+    failed_ids: set[int] = set()
     total = len(tasks)
 
     await event_bus.emit_to_project(project_id, EVENT_PIPELINE_STAGE_COMPLETED, {
         "stage": "dag_initialized", "tasks": total,
     }, db)
 
-    is_demo = project.openai_api_key and project.openai_api_key.strip().lower() == "demo"
+    # Initialize dispatcher with configured providers
+    disp = _build_dispatcher()
+
+    project_context = {
+        "project_id": project_id,
+        "project_name": project.name,
+        "project_description": project.description,
+    }
 
     while not scheduler.is_done():
         ready = scheduler.get_ready()
+        if not ready:
+            break
+
+        # Emit TASK_STARTED for all ready tasks
         for task_data in ready:
             tid = task_data["id"]
             task = db.query(Task).filter(Task.id == tid).first()
             if not task:
                 continue
-
+            task.status = "IN_PROGRESS"
             await event_bus.emit_to_project(project_id, EVENT_TASK_STARTED, {
                 "task_id": tid, "title": task.title,
             }, db)
+        db.commit()
 
-            task.status = "IN_PROGRESS"
-            db.commit()
+        # Dispatch all ready tasks in parallel via the dispatcher
+        results = await disp.dispatch_batch(ready, project_context, db)
 
-            try:
-                if is_demo:
-                    _execute_demo_task(task)
-                else:
-                    await _execute_llm_task(task, project, db)
+        # Process results
+        for i, task_data in enumerate(ready):
+            tid = task_data["id"]
+            result = results[i] if i < len(results) else TaskResult(
+                run_id="", status="failed", output={},
+                error="No result returned",
+            )
 
+            task = db.query(Task).filter(Task.id == tid).first()
+            if not task:
+                continue
+
+            if result.status == "completed":
                 task.status = "COMPLETED"
-                db.commit()
                 completed_ids.add(tid)
                 scheduler.mark_completed(tid)
-
                 await event_bus.emit_to_project(project_id, EVENT_TASK_COMPLETED, {
                     "task_id": tid, "title": task.title, "status": "COMPLETED",
                 }, db)
-            except Exception as e:
-                logger.error(f"Task #{tid} failed: {e}")
+            else:
                 task.status = "FAILED"
-                db.commit()
+                failed_ids.add(tid)
+                logger.error(f"Task #{tid} failed: {result.error}")
+            db.commit()
 
-        if not ready:
-            break
+    # Generate output (only if at least some tasks completed)
+    if completed_ids:
+        is_demo = project.openai_api_key and project.openai_api_key.strip().lower() == "demo"
+        await _generate_output(project, db, is_demo)
 
-    # Generate output
-    await _generate_output(project, db, is_demo)
-
-    project.status = "completed"
+    project.status = "completed" if not failed_ids else "completed_with_errors"
     db.commit()
 
     return {
         "tasks_completed": len(completed_ids),
+        "tasks_failed": len(failed_ids),
         "tasks_total": total,
     }
 
 
-def _execute_demo_task(task: Task):
-    import time
-    time.sleep(0.1)
-
-
-async def _execute_llm_task(task: Task, project: Project, db: Session):
-    pass
+def _build_dispatcher() -> TaskDispatcher:
+    providers: list[Any] = [
+        NativeProvider(),
+        MockProvider(delay=1.0),
+    ]
+    urls = [u.strip() for u in settings.acp_server_urls.split(",") if u.strip()]
+    if urls:
+        from app.integration.acp_provider import ACPProvider
+        providers.append(ACPProvider(urls))
+        logger.info(f"ACP provider configured: {urls}")
+    return TaskDispatcher(registry, providers)
 
 
 async def _generate_output(project: Project, db: Session, is_demo: bool):
