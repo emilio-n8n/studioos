@@ -27,6 +27,16 @@ interface Props {
     complexity: string | null;
     risks: Risk[] | null;
     total_decisions: number;
+    governance_agents?: number;
+    execution_agents?: number;
+    native_agents?: number;
+    acp_agents?: number;
+    mock_agents?: number;
+    level_4?: number;
+    level_3?: number;
+    level_2?: number;
+    level_1?: number;
+    total_events?: number;
   };
   decisions?: Decision[];
 }
@@ -64,6 +74,28 @@ const CATEGORY_LABELS: Record<string, string> = {
   structure: "Structure",
 };
 
+function AgentBadge({ label, count, color }: { label: string; count?: number; color: string }) {
+  return (
+    <div className={`rounded-lg border px-3 py-2 text-center ${color}`}>
+      <div className="text-lg font-bold">{count ?? 0}</div>
+      <div className="text-[10px] uppercase tracking-wide">{label}</div>
+    </div>
+  );
+}
+
+function LevelBar({ label, count, max, color }: { label: string; count: number; max: number; color: string }) {
+  const pct = max > 0 ? Math.round((count / max) * 100) : 0;
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="w-16 shrink-0 text-zinc-500">{label}</span>
+      <div className="h-3 flex-1 rounded-full bg-zinc-100">
+        <div className={`h-3 rounded-full ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="w-6 text-right font-medium text-zinc-700">{count}</span>
+    </div>
+  );
+}
+
 export default function CEODashboard({ dashboard, decisions }: Props) {
   const progress =
     dashboard.total_tasks > 0
@@ -80,7 +112,7 @@ export default function CEODashboard({ dashboard, decisions }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* KPI Cards */}
+      {/* KPI Cards — Row 1: Structure */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatsCard
           label="Complexité"
@@ -90,6 +122,42 @@ export default function CEODashboard({ dashboard, decisions }: Props) {
         <StatsCard label="Départements" value={dashboard.total_departments} />
         <StatsCard label="Rôles" value={dashboard.total_roles} />
         <StatsCard label="Agents" value={dashboard.total_agents} color="text-blue-600" />
+      </div>
+
+      {/* KPI Cards — Row 2: Gouvernance vs Exécution */}
+      <div>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          Agents par type
+        </h3>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <AgentBadge label="Gouvernance" count={dashboard.governance_agents} color="border-purple-200 bg-purple-50 text-purple-800" />
+          <AgentBadge label="Exécution" count={dashboard.execution_agents} color="border-blue-200 bg-blue-50 text-blue-800" />
+          <AgentBadge label="Total" count={dashboard.total_agents} color="border-zinc-200 bg-white text-zinc-800" />
+          <AgentBadge label="Événements" count={dashboard.total_events} color="border-emerald-200 bg-emerald-50 text-emerald-800" />
+        </div>
+      </div>
+
+      {/* Fournisseurs */}
+      <div>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          Fournisseurs d&apos;agents
+        </h3>
+        <div className="grid grid-cols-3 gap-4">
+          <AgentBadge label="Natif" count={dashboard.native_agents} color="border-zinc-200 bg-white text-zinc-700" />
+          <AgentBadge label="ACP" count={dashboard.acp_agents} color="border-blue-200 bg-blue-50 text-blue-700" />
+          <AgentBadge label="Mock" count={dashboard.mock_agents} color="border-purple-200 bg-purple-50 text-purple-700" />
+        </div>
+      </div>
+
+      {/* Niveaux hiérarchiques */}
+      <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+        <h3 className="mb-3 text-sm font-semibold text-zinc-900">Distribution des niveaux</h3>
+        <div className="space-y-2">
+          <LevelBar label="CEO (4)" count={dashboard.level_4 ?? 0} max={dashboard.total_agents} color="bg-red-500" />
+          <LevelBar label="Director (3)" count={dashboard.level_3 ?? 0} max={dashboard.total_agents} color="bg-amber-500" />
+          <LevelBar label="Lead (2)" count={dashboard.level_2 ?? 0} max={dashboard.total_agents} color="bg-blue-500" />
+          <LevelBar label="Worker (1)" count={dashboard.level_1 ?? 0} max={dashboard.total_agents} color="bg-green-500" />
+        </div>
       </div>
 
       {/* Progress bar */}

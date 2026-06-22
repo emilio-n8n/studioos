@@ -100,6 +100,16 @@ export interface Dashboard {
   complexity: string | null;
   risks: Risk[] | null;
   total_decisions: number;
+  governance_agents?: number;
+  execution_agents?: number;
+  native_agents?: number;
+  acp_agents?: number;
+  mock_agents?: number;
+  level_4?: number;
+  level_3?: number;
+  level_2?: number;
+  level_1?: number;
+  total_events?: number;
 }
 
 export interface StrategicDecision {

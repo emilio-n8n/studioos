@@ -12,6 +12,7 @@ from app.models.role import Role
 from app.schemas.task import TaskResponse, TaskTransition, DashboardResponse
 from app.kernel.task_engine import is_valid_transition, can_transition_to
 from app.kernel.event_bus import event_bus, EVENT_TASK_ASSIGNED, EVENT_TASK_STARTED, EVENT_TASK_COMPLETED
+from app.models.event_log import EventLog
 from app.kernel.memory_system import memory_system
 from app.kernel.log_handler import set_project_context
 
@@ -58,6 +59,37 @@ def get_dashboard(project_id: int, db: Session = Depends(get_db)):
         StrategicDecision.project_id == project_id
     ).count()
 
+    # Agent distribution stats
+    gov_count = 0
+    exec_count = 0
+    native_count = 0
+    acp_count = 0
+    mock_count = 0
+    level_4 = 0
+    level_3 = 0
+    level_2 = 0
+    level_1 = 0
+    if org:
+        for dept in org.departments:
+            for role in dept.roles:
+                if role.is_governance:
+                    gov_count += len(role.agents)
+                else:
+                    exec_count += len(role.agents)
+                lv = role.level or 1
+                if lv >= 4: level_4 += len(role.agents)
+                elif lv == 3: level_3 += len(role.agents)
+                elif lv == 2: level_2 += len(role.agents)
+                else: level_1 += len(role.agents)
+                for agent in role.agents:
+                    if agent.provider == "acp": acp_count += 1
+                    elif agent.provider == "mock": mock_count += 1
+                    else: native_count += 1
+
+    event_count = db.query(EventLog).filter(
+        EventLog.project_id == project_id
+    ).count()
+
     return DashboardResponse(
         project_id=project.id,
         total_tasks=len(tasks),
@@ -68,6 +100,16 @@ def get_dashboard(project_id: int, db: Session = Depends(get_db)):
         complexity=project.complexity,
         risks=(project.analysis or {}).get("risks", []),
         total_decisions=decision_count,
+        governance_agents=gov_count,
+        execution_agents=exec_count,
+        native_agents=native_count,
+        acp_agents=acp_count,
+        mock_agents=mock_count,
+        level_4=level_4,
+        level_3=level_3,
+        level_2=level_2,
+        level_1=level_1,
+        total_events=event_count,
     )
 
 

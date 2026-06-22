@@ -37,3 +37,13 @@ class DashboardResponse(BaseModel):
     complexity: str | None
     risks: list | None
     total_decisions: int = 0
+    governance_agents: int = 0
+    execution_agents: int = 0
+    native_agents: int = 0
+    acp_agents: int = 0
+    mock_agents: int = 0
+    level_4: int = 0  # CEO
+    level_3: int = 0  # Director
+    level_2: int = 0  # Lead
+    level_1: int = 0  # Worker
+    total_events: int = 0
