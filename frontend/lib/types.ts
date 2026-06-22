@@ -46,6 +46,7 @@ export interface Department {
   id: number;
   name: string;
   description: string | null;
+  parent_department_id?: number | null;
   roles: Role[];
 }
 
@@ -60,6 +61,8 @@ export interface Role {
   required_skills: string[];
   metrics: string[];
   status: string;
+  is_governance?: boolean;
+  level?: number;
 }
 
 export interface Agent {
@@ -67,6 +70,9 @@ export interface Agent {
   role_id: number;
   name: string;
   status: string;
+  agent_type?: string;
+  provider?: string;
+  capabilities?: string[];
 }
 
 export interface Task {
@@ -120,6 +126,11 @@ export interface OrgNode {
     description?: string;
     status?: string;
     type: string;
+    level?: number;
+    is_governance?: boolean;
+    agent_type?: string;
+    provider?: string;
+    parent_department_id?: number | null;
   };
 }
 

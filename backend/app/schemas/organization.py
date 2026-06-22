@@ -13,6 +13,8 @@ class RoleResponse(BaseModel):
     required_skills: list
     metrics: list
     status: str
+    is_governance: bool = False
+    level: int = 1
 
     class Config:
         from_attributes = True
@@ -23,6 +25,9 @@ class AgentResponse(BaseModel):
     role_id: int
     name: str
     status: str
+    agent_type: str = "execution"
+    provider: str = "native"
+    capabilities: list = []
 
     class Config:
         from_attributes = True
@@ -32,6 +37,7 @@ class DepartmentResponse(BaseModel):
     id: int
     name: str
     description: str | None
+    parent_department_id: int | None = None
     roles: list[RoleResponse] = []
 
     class Config:

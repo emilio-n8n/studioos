@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+from typing import Any
+
+from app.integration.registry import registry
+from app.integration.native_provider import NativeProvider
+from app.integration.mock_provider import MockProvider
+
 DEPARTMENT_ROLE_TEMPLATES: dict[str, list[dict]] = {
     "Game Design": [
         {"title": "Game Director", "summary": "Owns creative vision and final design decisions", "responsibilities": ["Define creative vision", "Approve game design decisions"], "authority": ["Final call on design"], "permissions": ["edit:design_doc", "approve:feature", "assign:task"], "reports_to": None, "required_skills": ["Game design", "Leadership"], "metrics": ["team_satisfaction", "vision_alignment"]},
@@ -52,6 +58,59 @@ def get_department_name_key(raw_name: str) -> str | None:
     return None
 
 
+GOVERNANCE_TITLES = {
+    "CEO": 4, "Director": 3, "Lead": 2, "Manager": 2,
+    "Supervisor": 2, "Reviewer": 2, "Planner": 3, "Architect": 3,
+}
+
+
+def infer_role_level(title: str) -> int:
+    for keyword, level in GOVERNANCE_TITLES.items():
+        if keyword.lower() in title.lower():
+            return level
+    return 1
+
+
+def infer_is_governance(title: str) -> bool:
+    gov_keywords = [
+        "CEO", "Director", "Lead", "Manager", "Supervisor",
+        "Reviewer", "Planner", "Architect", "Producer",
+    ]
+    return any(k.lower() in title.lower() for k in gov_keywords)
+
+
+def hire_agents_by_capability(
+    db: Any,
+    required_skills: list[str],
+    count: int = 1,
+) -> list[dict[str, Any]]:
+    from app.database import SessionLocal
+    if db is None:
+        db = SessionLocal()
+
+    try:
+        entries = registry.search_by_capability(
+            db, required_skills, min_quality=1
+        )
+        selected = entries[:count] if entries else []
+        results = []
+        for entry in selected:
+            results.append({
+                "name": entry.name,
+                "provider": entry.provider,
+                "external_id": entry.external_id,
+                "capabilities": entry.capabilities or [],
+                "cost": entry.cost,
+                "speed": entry.speed,
+                "quality": entry.quality,
+                "registry_id": entry.id,
+            })
+        return results
+    finally:
+        if db:
+            db.close()
+
+
 def define_roles(departments: list[dict]) -> list[dict]:
     all_roles = []
     for dept in departments:
@@ -65,7 +124,7 @@ def define_roles(departments: list[dict]) -> list[dict]:
                 {"title": f"{dept_name} Specialist", "summary": f"Executes {dept_name} tasks", "responsibilities": [f"Execute {dept_name} tasks"], "authority": [], "permissions": [f"view:{dept_name.lower()}"], "reports_to": f"{dept_name} Lead", "required_skills": [], "metrics": []},
             ]
         for t in templates:
-            all_roles.append({
+            role = {
                 "department_name": dept_name,
                 "title": t["title"],
                 "summary": t.get("summary", ""),
@@ -75,5 +134,8 @@ def define_roles(departments: list[dict]) -> list[dict]:
                 "reports_to": t["reports_to"],
                 "required_skills": t["required_skills"],
                 "metrics": t.get("metrics", []),
-            })
+            }
+            role["is_governance"] = infer_is_governance(t["title"])
+            role["level"] = infer_role_level(t["title"])
+            all_roles.append(role)
     return all_roles

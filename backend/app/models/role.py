@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Text, JSON
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, JSON
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -18,6 +18,8 @@ class Role(Base):
     required_skills = Column(JSON, default=list)
     metrics = Column(JSON, default=list)
     status = Column(String(50), default="active")
+    is_governance = Column(Boolean, default=False)
+    level = Column(Integer, default=1)
 
     department = relationship("Department", back_populates="roles")
     agents = relationship("Agent", back_populates="role", cascade="all, delete-orphan")

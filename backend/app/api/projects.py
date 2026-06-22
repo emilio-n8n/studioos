@@ -104,6 +104,8 @@ async def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
             required_skills=rd["required_skills"],
             metrics=rd.get("metrics", []),
             status="active",
+            is_governance=rd.get("is_governance", False),
+            level=rd.get("level", 1),
         )
         db.add(role)
         db.flush()
