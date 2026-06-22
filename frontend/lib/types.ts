@@ -74,6 +74,37 @@ export interface Agent {
   agent_type?: string;
   provider?: string;
   capabilities?: string[];
+  current_task_id?: number | null;
+  current_task?: string | null;
+  is_active?: boolean;
+  last_active_at?: string | null;
+}
+
+export interface AgentDetail extends Agent {
+  role: string;
+  recent_files: { sha: string; message: string; timestamp: string }[];
+}
+
+export interface AgentMessage {
+  id?: number;
+  agent_id: number;
+  agent_name: string;
+  message: string;
+  sender: string;
+  timestamp: string;
+}
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ChatStreamEvent {
+  type: "token" | "tool_start" | "tool_result" | "done";
+  content?: string;
+  tool?: string;
+  args?: Record<string, unknown>;
+  result?: string;
 }
 
 export interface Task {

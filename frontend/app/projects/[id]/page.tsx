@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
-import Header from "@/components/layout/Header";
+import CeoChat from "@/components/chat/CeoChat";
+import MiniOrgChart from "@/components/chat/MiniOrgChart";
+import AgentCodexPanel from "@/components/chat/AgentCodexPanel";
 import CEODashboard from "@/components/dashboard/CEODashboard";
-import ProductionFlow from "@/components/dashboard/ProductionFlow";
 import AlertCenter from "@/components/dashboard/AlertCenter";
 import OrgChart from "@/components/organization/OrgChart";
 import TaskBoard from "@/components/project/TaskBoard";
@@ -28,9 +29,23 @@ import {
   getPipelineDag,
 } from "@/lib/api";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import type { Project, Dashboard, OrgTree, Task, StrategicDecision, Organization } from "@/lib/types";
+import type { Project, Dashboard, OrgTree, Task, StrategicDecision, Organization, AgentDetail } from "@/lib/types";
 
-type Tab = "dashboard" | "organization" | "tasks" | "analysis" | "generation" | "logs" | "memory" | "reviews" | "git" | "pipeline" | "agents";
+type Tab = "dashboard" | "organization" | "tasks" | "analysis" | "memory" | "reviews" | "git" | "pipeline" | "agents" | "generation" | "logs";
+
+const LEGACY_LABELS: Record<Tab, string> = {
+  dashboard: "CEO Dashboard",
+  organization: "Organigramme",
+  tasks: "Tâches",
+  analysis: "Rapport Stratégique",
+  memory: "Mémoire",
+  reviews: "Reviews",
+  git: "Git",
+  pipeline: "Pipeline",
+  agents: "Agents",
+  generation: "Génération",
+  logs: "Logs",
+};
 
 export default function ProjectPage() {
   const params = useParams();
@@ -43,7 +58,6 @@ export default function ProjectPage() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [decisions, setDecisions] = useState<StrategicDecision[]>([]);
-  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -52,6 +66,9 @@ export default function ProjectPage() {
   const [runningPipeline, setRunningPipeline] = useState(false);
   const [pipelineStatus, setPipelineStatus] = useState<string | null>(null);
   const [dagData, setDagData] = useState<{ nodes: unknown[]; edges: unknown[] } | null>(null);
+  const [showMenu, setShowMenu] = useState(false);
+  const [legacyTab, setLegacyTab] = useState<Tab | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<AgentDetail | null>(null);
 
   const loadData = useCallback(async () => {
     if (isNaN(projectId)) return;
@@ -121,6 +138,7 @@ export default function ProjectPage() {
     try {
       const result = await runPipeline(projectId);
       setPipelineStatus(`Terminé : ${result.tasks_completed}/${result.tasks_total} tâches`);
+      loadData();
     } catch (err: unknown) {
       setPipelineStatus(err instanceof Error ? err.message : "Pipeline failed");
     } finally {
@@ -130,188 +148,193 @@ export default function ProjectPage() {
 
   const allRoles = org?.departments?.flatMap((d) => d.roles) ?? [];
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: "dashboard", label: "CEO Dashboard" },
-    { key: "organization", label: "Organigramme" },
-    { key: "tasks", label: "Tâches" },
-    { key: "analysis", label: "Rapport Stratégique" },
-    { key: "memory", label: "Mémoire" },
-    { key: "reviews", label: "Reviews" },
-    { key: "git", label: "Git" },
-    { key: "pipeline", label: "Pipeline" },
-    { key: "agents", label: "Agents" },
-    { key: "generation", label: "Génération" },
-    { key: "logs", label: "Logs" },
-  ];
+  const handleAgentSelect = (agent: AgentDetail) => {
+    setSelectedAgent(agent);
+  };
+
+  const handleAgentClickFromChat = (agentId: number) => {
+    import("@/lib/api").then((api) => {
+      api.getAgentDetail(projectId, agentId).then(setSelectedAgent).catch(() => {});
+    });
+  };
+
+  const tabs: Tab[] = ["dashboard", "organization", "tasks", "analysis", "memory", "reviews", "git", "pipeline", "agents", "generation", "logs"];
 
   if (isNaN(projectId)) {
     return (
-      <div className="flex flex-1 flex-col">
-        <Header title="Projet invalide" />
-        <div className="flex flex-1 items-center justify-center">
-          <p className="text-zinc-400">ID de projet invalide</p>
+      <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#1e1e2e", color: "#cdd6f4" }}>
+        <div style={{ height: 40, display: "flex", alignItems: "center", padding: "0 14px", background: "#181825", borderBottom: "1px solid #313244" }}>
+          <span style={{ fontWeight: 600 }}>StudioOS</span>
         </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="flex flex-1 flex-col">
-        <Header title="Chargement..." />
-        <div className="flex flex-1 items-center justify-center">
-          <p className="text-zinc-400">Analyse du projet en cours...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!project || !dashboard) {
-    return (
-      <div className="flex flex-1 flex-col">
-        <Header title="Erreur" />
-        <div className="flex flex-1 flex-col items-center justify-center gap-4">
-          <p className="text-zinc-400">{error || "Projet introuvable"}</p>
-          <button onClick={loadData} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">
-            Réessayer
-          </button>
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#6c7086" }}>
+          ID de projet invalide
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 flex-col">
-      <Header title={project.name} />
-
-      <nav className="flex gap-1 border-b border-zinc-200 bg-white px-6" role="tablist" aria-label="Project tabs">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            role="tab"
-            aria-selected={activeTab === tab.key}
-            aria-controls={`panel-${tab.key}`}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === tab.key
-                ? "border-b-2 border-blue-600 text-blue-600"
-                : "text-zinc-500 hover:text-zinc-700"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
-
-      <main className="flex-1 overflow-y-auto px-6 py-6">
-        {activeTab === "dashboard" && (
-          <CEODashboard dashboard={dashboard} decisions={decisions} />
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#1e1e2e", color: "#cdd6f4" }}>
+      {/* Header */}
+      <div style={{
+        height: 40, display: "flex", alignItems: "center", gap: "8px",
+        padding: "0 12px", background: "#181825", borderBottom: "1px solid #313244",
+        flexShrink: 0,
+      }}>
+        <button onClick={() => { setShowMenu(!showMenu); setLegacyTab(null); }}
+          style={{ background: "none", border: "none", color: "#6c7086", cursor: "pointer", fontSize: "18px", padding: "4px" }}>
+          ☰
+        </button>
+        <span style={{ fontWeight: 600, fontSize: "13px", color: "#89b4fa" }}>
+          {project?.name || "StudioOS"}
+        </span>
+        {pipelineStatus && (
+          <span style={{ fontSize: "11px", color: "#a6e3a1", marginLeft: "8px" }}>
+            {pipelineStatus}
+          </span>
         )}
-
-        {activeTab === "organization" && (
-          <OrgChart
-            nodes={orgTree?.nodes ?? []}
-            edges={orgTree?.edges ?? []}
-            roles={allRoles}
-          />
+        {runningPipeline && (
+          <span style={{ fontSize: "11px", color: "#fbbf24", marginLeft: "8px" }}>
+            Pipeline en cours...
+          </span>
         )}
-        {activeTab === "organization" && !orgTree && (
-          <p className="text-sm text-zinc-400">Organisation non disponible</p>
-        )}
+      </div>
 
-        {activeTab === "tasks" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-zinc-900">Tâches ({tasks.length})</h2>
-              <button
-                onClick={loadData}
-                className="rounded-lg bg-zinc-100 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-200"
-              >
-                Actualiser
+      {/* Main layout */}
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        {/* Legacy Sidebar Menu */}
+        {showMenu && (
+          <div style={{
+            width: 220, background: "#181825", borderRight: "1px solid #313244",
+            display: "flex", flexDirection: "column", flexShrink: 0,
+          }}>
+            <div style={{ padding: "12px 14px", fontSize: "11px", fontWeight: 600, color: "#6c7086", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Vues détaillées
+            </div>
+            {tabs.map((tab) => (
+              <button key={tab}
+                onClick={() => { setLegacyTab(legacyTab === tab ? null : tab); setShowMenu(false); }}
+                style={{
+                  textAlign: "left", padding: "8px 14px", fontSize: "13px",
+                  background: legacyTab === tab ? "#313244" : "transparent",
+                  border: "none", color: legacyTab === tab ? "#89b4fa" : "#cdd6f4",
+                  cursor: "pointer",
+                }}>
+                {LEGACY_LABELS[tab]}
+              </button>
+            ))}
+            <div style={{ marginTop: "auto", padding: "12px 14px" }}>
+              <button onClick={handleRunPipeline} disabled={runningPipeline} style={{
+                width: "100%", padding: "8px", borderRadius: "6px",
+                border: "none", background: runningPipeline ? "#313244" : "#2563eb",
+                color: runningPipeline ? "#6c7086" : "#fff",
+                cursor: runningPipeline ? "default" : "pointer",
+                fontSize: "12px", fontWeight: 600,
+              }}>
+                {runningPipeline ? "Pipeline..." : "▶ Lancer le pipeline"}
               </button>
             </div>
-            <TaskBoard tasks={tasks} projectId={projectId} onRefresh={loadData} />
-            <ProductionFlow tasksByStatus={dashboard.tasks_by_status} />
           </div>
         )}
 
-        {activeTab === "analysis" && project.analysis && (
-          <AnalysisReport analysis={project.analysis} />
-        )}
-        {activeTab === "analysis" && !project.analysis && (
-          <p className="text-sm text-zinc-400">Analyse non disponible</p>
-        )}
-
-        {activeTab === "memory" && (
-          <MemoryGraph projectId={projectId} />
-        )}
-
-        {activeTab === "reviews" && (
-          <ReviewPanel projectId={projectId} />
-        )}
-
-        {activeTab === "git" && (
-          <GitPanel projectId={projectId} />
-        )}
-
-        {activeTab === "pipeline" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-zinc-900">DAG d'exécution</h2>
-              <button
-                onClick={loadData}
-                className="rounded-lg bg-zinc-100 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-200"
-              >
-                Actualiser
-              </button>
-            </div>
-            {dagData ? (
-              <DAGView nodes={dagData.nodes as any} edges={dagData.edges as any} />
-            ) : (
-              <div className="flex h-64 items-center justify-center rounded-xl border border-zinc-200 bg-white text-sm text-zinc-400">
-                Aucune tâche — créez un projet puis lancez le pipeline
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === "agents" && (
-          <AgentRegistryPanel />
-        )}
-
-        {activeTab === "generation" && (
-          <div className="space-y-6">
-            <div className="rounded-lg border border-zinc-200 bg-white p-4">
-              <h2 className="mb-3 text-lg font-semibold text-zinc-900">Pipeline</h2>
-              <p className="mb-3 text-sm text-zinc-500">
-                Exécute toutes les tâches via le scheduleur DAG et génère le site.
-              </p>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleRunPipeline}
-                  disabled={runningPipeline}
-                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  {runningPipeline ? "Exécution..." : "Lancer le pipeline"}
+        {/* Main: Chat or Legacy View */}
+        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+          {legacyTab ? (
+            <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
+              <div style={{ marginBottom: "16px" }}>
+                <button onClick={() => { setLegacyTab(null); setShowMenu(true); }}
+                  style={{ background: "none", border: "none", color: "#89b4fa", cursor: "pointer", fontSize: "13px" }}>
+                  ← Retour au chat
                 </button>
-                {pipelineStatus && (
-                  <span className="text-sm text-zinc-600">{pipelineStatus}</span>
-                )}
               </div>
+              {legacyTab === "dashboard" && dashboard && (
+                <>
+                  <CEODashboard dashboard={dashboard} decisions={decisions} />
+                  <AlertCenter tasks={tasks} />
+                </>
+              )}
+              {legacyTab === "organization" && orgTree && (
+                <OrgChart nodes={orgTree.nodes} edges={orgTree.edges} roles={allRoles} />
+              )}
+              {legacyTab === "tasks" && (
+                <TaskBoard tasks={tasks} projectId={projectId} onRefresh={loadData} />
+              )}
+              {legacyTab === "analysis" && project?.analysis && (
+                <AnalysisReport analysis={project.analysis} />
+              )}
+              {legacyTab === "memory" && (
+                <MemoryGraph projectId={projectId} />
+              )}
+              {legacyTab === "reviews" && (
+                <ReviewPanel projectId={projectId} />
+              )}
+              {legacyTab === "git" && (
+                <GitPanel projectId={projectId} />
+              )}
+              {legacyTab === "pipeline" && (
+                <div>
+                  <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "12px", color: "#cdd6f4" }}>DAG d'exécution</h2>
+                  {dagData ? (
+                    <DAGView nodes={dagData.nodes as any} edges={dagData.edges as any} />
+                  ) : (
+                    <div style={{ color: "#6c7086", fontSize: "13px" }}>Aucune tâche</div>
+                  )}
+                  <div style={{ marginTop: "12px" }}>
+                    <button onClick={handleRunPipeline} disabled={runningPipeline} style={{
+                      padding: "8px 16px", borderRadius: "6px", border: "none",
+                      background: runningPipeline ? "#313244" : "#2563eb",
+                      color: runningPipeline ? "#6c7086" : "#fff",
+                      cursor: runningPipeline ? "default" : "pointer", fontSize: "13px", fontWeight: 600,
+                    }}>
+                      {runningPipeline ? "Exécution..." : "Lancer le pipeline"}
+                    </button>
+                    {pipelineStatus && <span style={{ marginLeft: "12px", fontSize: "12px", color: "#a6e3a1" }}>{pipelineStatus}</span>}
+                  </div>
+                </div>
+              )}
+              {legacyTab === "agents" && <AgentRegistryPanel />}
+              {legacyTab === "generation" && (
+                <GenerationPanel generating={generating} generatedUrl={generatedUrl} genError={genError} onGenerate={handleGenerate} />
+              )}
+              {legacyTab === "logs" && <LogPanel projectId={projectId} />}
             </div>
-            <GenerationPanel
-              generating={generating}
-              generatedUrl={generatedUrl}
-              genError={genError}
-              onGenerate={handleGenerate}
-            />
+          ) : (
+            /* Chat view */
+            <CeoChat projectId={projectId} onAgentClick={handleAgentClickFromChat} />
+          )}
+        </div>
+
+        {/* Right sidebar: Mini Org Chart */}
+        {!legacyTab && (
+          <div style={{
+            width: 220, borderLeft: "1px solid #313244",
+            background: "#181825", flexShrink: 0,
+            display: "flex", flexDirection: "column",
+          }}>
+            <MiniOrgChart projectId={projectId} onAgentSelect={handleAgentSelect} />
+            <div style={{ padding: "8px 12px", borderTop: "1px solid #313244" }}>
+              <button onClick={handleRunPipeline} disabled={runningPipeline} style={{
+                width: "100%", padding: "6px", borderRadius: "6px",
+                border: "none", background: runningPipeline ? "#313244" : "#2563eb",
+                color: runningPipeline ? "#6c7086" : "#fff",
+                cursor: runningPipeline ? "default" : "pointer",
+                fontSize: "11px", fontWeight: 600,
+              }}>
+                {runningPipeline ? "Pipeline..." : "▶ Lancer le pipeline"}
+              </button>
+            </div>
           </div>
         )}
+      </div>
 
-        {activeTab === "logs" && (
-          <LogPanel projectId={projectId} />
-        )}
-      </main>
+      {/* Agent CodeXplorer Panel */}
+      {selectedAgent && (
+        <AgentCodexPanel
+          agent={selectedAgent}
+          projectId={projectId}
+          onClose={() => setSelectedAgent(null)}
+        />
+      )}
     </div>
   );
 }

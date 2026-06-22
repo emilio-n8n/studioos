@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
@@ -157,6 +158,11 @@ async def _execute_pipeline(project: Project, db: Session) -> dict:
             if not task:
                 continue
             task.status = "IN_PROGRESS"
+            agent = db.query(Agent).filter(Agent.id == task.assigned_agent_id).first()
+            if agent:
+                agent.current_task_id = tid
+                agent.is_active = True
+                agent.last_active_at = datetime.now(timezone.utc)
             await event_bus.emit_to_project(project_id, EVENT_TASK_STARTED, {
                 "task_id": tid, "title": task.title,
             }, db)
@@ -195,6 +201,9 @@ async def _execute_pipeline(project: Project, db: Session) -> dict:
                     await _execute_llm_task(task, project, db)
 
             task.status = "COMPLETED"
+            agent = db.query(Agent).filter(Agent.id == task.assigned_agent_id).first()
+            if agent:
+                agent.current_task_id = None
             completed_ids.add(tid)
             scheduler.mark_completed(tid)
             await event_bus.emit_to_project(project_id, EVENT_TASK_COMPLETED, {

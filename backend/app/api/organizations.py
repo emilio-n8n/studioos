@@ -7,6 +7,7 @@ from app.models.organization import Organization
 from app.models.department import Department
 from app.models.role import Role
 from app.models.agent import Agent
+from app.models.task import Task
 from app.schemas.organization import OrganizationResponse, DepartmentResponse, RoleResponse
 
 router = APIRouter(prefix="/api/projects/{project_id}/organization", tags=["organization"])
@@ -123,6 +124,10 @@ def get_org_tree(project_id: int, db: Session = Depends(get_db)):
             })
 
             for agent in role.agents:
+                task_title = None
+                if agent.current_task_id:
+                    t = db.query(Task).filter(Task.id == agent.current_task_id).first()
+                    task_title = t.title if t else None
                 agent_node = {
                     "id": f"agent-{agent.id}",
                     "type": "agent",
@@ -133,6 +138,10 @@ def get_org_tree(project_id: int, db: Session = Depends(get_db)):
                         "type": "agent",
                         "agent_type": agent.agent_type or "execution",
                         "provider": agent.provider or "native",
+                        "current_task_id": agent.current_task_id,
+                        "current_task": task_title,
+                        "is_active": agent.is_active,
+                        "last_active_at": str(agent.last_active_at) if agent.last_active_at else None,
                     },
                 }
                 nodes.append(agent_node)
@@ -225,11 +234,25 @@ def get_department_subtree(
             edges.append({"id": f"e-{node_id}-{role_id}", "source": node_id, "target": role_id})
             for agent in role.agents:
                 agent_id = f"agent-{agent.id}"
+                task_title = None
+                if agent.current_task_id:
+                    t = db.query(Task).filter(Task.id == agent.current_task_id).first()
+                    task_title = t.title if t else None
                 nodes.append({
                     "id": agent_id,
                     "type": "agent",
                     "position": {"x": 0, "y": 0},
-                    "data": {"label": agent.name, "status": agent.status, "type": "agent", "agent_type": agent.agent_type or "execution", "provider": agent.provider or "native"},
+                    "data": {
+                        "label": agent.name,
+                        "status": agent.status,
+                        "type": "agent",
+                        "agent_type": agent.agent_type or "execution",
+                        "provider": agent.provider or "native",
+                        "current_task_id": agent.current_task_id,
+                        "current_task": task_title,
+                        "is_active": agent.is_active,
+                        "last_active_at": str(agent.last_active_at) if agent.last_active_at else None,
+                    },
                 })
                 edges.append({"id": f"e-{role_id}-{agent_id}", "source": role_id, "target": agent_id})
 

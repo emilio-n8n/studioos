@@ -159,3 +159,68 @@ export function searchAgentsByCapability(q: string, minQuality = 1) {
     `/api/integration/agents/search?q=${encodeURIComponent(q)}&min_quality=${minQuality}`
   );
 }
+
+// Chat CEO
+export function chatWithCEO(
+  projectId: number,
+  message: string,
+  history: { role: string; content: string }[],
+  onEvent: (event: import("./types").ChatStreamEvent) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    fetch(`${getApiBase()}/api/projects/${projectId}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, history }),
+      signal,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.text();
+        reject(new Error(err));
+        return;
+      }
+      const reader = res.body?.getReader();
+      if (!reader) { resolve(); return; }
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const event = JSON.parse(line.slice(6));
+              onEvent(event);
+              if (event.type === "done") { resolve(); return; }
+            } catch { /* skip malformed */ }
+          }
+        }
+      }
+      resolve();
+    }).catch(reject);
+  });
+}
+
+// Agent API
+export function listAgents(projectId: number) {
+  return request<{ agents: import("./types").Agent[] }>(
+    `/api/projects/${projectId}/agents`
+  );
+}
+
+export function getAgentDetail(projectId: number, agentId: number) {
+  return request<import("./types").AgentDetail>(
+    `/api/projects/${projectId}/agents/${agentId}`
+  );
+}
+
+export function sendAgentMessage(projectId: number, agentId: number, message: string) {
+  return request<{ status: string; agent_name: string }>(
+    `/api/projects/${projectId}/agents/${agentId}/message`,
+    { method: "POST", body: JSON.stringify({ message, sender: "CEO" }) }
+  );
+}

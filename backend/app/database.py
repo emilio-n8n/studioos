@@ -35,6 +35,9 @@ def _migrate_schema():
         ("agents", "provider", "VARCHAR(50) DEFAULT 'native'"),
         ("agents", "external_agent_id", "VARCHAR(255)"),
         ("agents", "capabilities", "JSON DEFAULT '[]'"),
+        ("agents", "current_task_id", "INTEGER"),
+        ("agents", "is_active", "BOOLEAN DEFAULT 1"),
+        ("agents", "last_active_at", "DATETIME"),
         ("departments", "parent_department_id", "INTEGER"),
     ]
     for table, col, col_type in migrations:
