@@ -31,9 +31,18 @@ Your report content in markdown...
 
 
 def parse_files_from_llm(text: str) -> list[dict]:
+    # Format 1: ===FILE:path===\ncontent
     pattern = r'===FILE:([^\n]+)===\n(.*?)(?=\n===FILE:|$)'
     matches = re.findall(pattern, text, re.DOTALL)
-    return [{"path": p.strip(), "content": c.strip()} for p, c in matches]
+    files = [{"path": p.strip(), "content": c.strip()} for p, c in matches]
+    if files:
+        return files
+    # Format 2: Markdown code blocks
+    md_pattern = r'```(?:\w+)?\n(.*?)```'
+    md_matches = re.findall(md_pattern, text, re.DOTALL)
+    for i, content in enumerate(md_matches):
+        files.append({"path": f"output/file_{i}.md", "content": content.strip()})
+    return files
 
 
 async def generate_task_output(
@@ -77,11 +86,15 @@ async def generate_task_output(
     )
 
     if not response.choices:
-        raise RuntimeError("LLM returned empty response")
+        logger.error(f"LLM response has no choices: model={model_name}")
+        return [{"path": f"output/{task_id}/report.md", "content": f"# {task_title}\n\n*Fallback: LLM returned empty response.*"}]
 
-    raw = response.choices[0].message.content
+    msg = response.choices[0].message
+    finish = response.choices[0].finish_reason
+    raw = msg.content
     if not raw:
-        raise RuntimeError("LLM returned empty response")
+        logger.error(f"LLM returned empty content: model={model_name}, finish_reason={finish}, tool_calls={msg.tool_calls}")
+        return [{"path": f"output/{task_id}/report.md", "content": f"# {task_title}\n\n*Fallback: LLM returned empty response.*"}]
 
     files = parse_files_from_llm(raw)
     if not files:
