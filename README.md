@@ -42,6 +42,7 @@ studioos/
 │   │   ├── models/       # SQLAlchemy models (Project, Organization, MemoryNode, Review, PullRequest...)
 │   │   ├── schemas/      # Pydantic schemas
 │   │   ├── kernel/       # EventBus, EventStore, DAGEngine, Scheduler, MemorySystem, MemoryReplay, TaskEngine, GitManager
+│   │   ├── integration/  # AgentProviderInterface, NativeProvider, MockProvider, AgentRegistry
 │   │   ├── org_intelligence/  # StrategicPlanner, Recruiter, AgentFactory
 │   │   └── workforce/    # AgentExecutor, FileManager
 │   └── scripts/seed.py   # Demo data seeder
@@ -164,6 +165,24 @@ System state can be reconstructed from the event log at any point:
 
 The snapshot includes: project info, strategy, organization, agents, tasks (with statuses), reviews, and memories.
 
+## Agent Integration Layer
+
+StudioOS separates governance agents (CEO, Directors, Leads) from execution agents (workers) via a protocol-agnostic integration layer.
+
+**Architecture:**
+- `AgentProviderInterface` (abstract) — `discover_agents()`, `assign_task()`, `get_status()`, `collect_results()`, `cancel_task()`
+- Providers implement this interface: `NativeProvider` (built-in), `MockProvider` (dev/testing), `ACPProvider` (future), `A2AProvider` (future)
+- `AgentRegistry` — central talent pool with auto-discovery, manual registration, and governance review (discovered → pending → approved)
+- Capability-based search: `GET /agents/search?q=backend,python` finds best-matching agents
+
+**Provider support:**
+
+| Provider | Discovered agents | Status |
+|----------|------------------|--------|
+| Native (built-in) | Strategic Planner, Architect, Recruiter, Executor | Always available |
+| Mock (dev) | Backend Dev, Frontend Dev, Content Writer | Local testing only |
+| ACP (external) | Dynamic from ACP servers | Configurable via `ACP_SERVER_URLS` |
+
 ## Event System (V8 Kernel)
 
 Every mutation emits a typed event persisted in the `event_log` table:
@@ -213,6 +232,13 @@ Tasks with `depends_on` dependencies are automatically topologically sorted. The
 | POST | `/api/projects/{id}/git/pr/{pid}/merge` | Merge PR |
 | POST | `/api/projects/{id}/generate` | Generate website |
 | GET | `/api/projects/{id}/output` | List generated files |
+| GET | `/api/integration/providers` | List configured agent providers |
+| POST | `/api/integration/providers/discover` | Auto-discover agents from all providers |
+| GET | `/api/integration/agents` | List agent registry entries (filter by status/provider) |
+| POST | `/api/integration/agents/register` | Manually register an external agent |
+| POST | `/api/integration/agents/{id}/approve` | Approve a discovered agent for use |
+| POST | `/api/integration/agents/{id}/reject` | Reject a discovered agent |
+| GET | `/api/integration/agents/search?q=backend,python` | Search agents by capability |
 | WS | `/ws/projects/{id}` | Real-time events |
 | GET | `/output/{id}/index.html` | Generated website |
 

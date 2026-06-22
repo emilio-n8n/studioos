@@ -11,5 +11,9 @@ class Agent(Base):
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
     name = Column(String(255), nullable=False)
     status = Column(String(50), default="created")
+    agent_type = Column(String(50), default="execution")
+    provider = Column(String(50), default="native")
+    external_agent_id = Column(String(255), nullable=True)
+    capabilities = Column(JSON, default=list)
 
     role = relationship("Role", back_populates="agents")

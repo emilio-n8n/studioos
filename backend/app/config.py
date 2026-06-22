@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     debug: bool = False
     output_dir: str = "output"
     environment: str = "development"
+    acp_server_urls: str = ""
 
     class Config:
         env_file = ".env"

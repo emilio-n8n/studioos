@@ -10,7 +10,7 @@ from app.database import init_db
 from app.config import settings
 from app.kernel.event_bus import event_bus
 from app.kernel.log_handler import WebSocketLogHandler
-from app.api import projects, organizations, tasks, websocket, generation, memory, reviews, git, pipeline
+from app.api import projects, organizations, tasks, websocket, generation, memory, reviews, git, pipeline, integration
 
 logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO))
 logger = logging.getLogger("studioos")
@@ -50,6 +50,7 @@ app.include_router(memory.router)
 app.include_router(reviews.router)
 app.include_router(git.router)
 app.include_router(pipeline.router)
+app.include_router(integration.router)
 
 output_abs = os.path.abspath(settings.output_dir)
 os.makedirs(output_abs, exist_ok=True)
