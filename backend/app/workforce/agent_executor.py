@@ -37,10 +37,29 @@ Output format:
 
 def parse_files_from_llm(text: str) -> list[dict]:
     files = []
+
+    # Format 1: ===FILE:path===\ncontent
     pattern = r'===FILE:([^\n]+)===\n(.*?)(?=\n===FILE:|$)'
     matches = re.findall(pattern, text, re.DOTALL)
     for path, content in matches:
         files.append({"path": path.strip(), "content": content.strip()})
+
+    if files:
+        return files
+
+    # Format 2: Markdown code blocks ```language\ncontent```
+    md_pattern = r'```(?:\w+)?\n(.*?)```'
+    md_matches = re.findall(md_pattern, text, re.DOTALL)
+    names = ["index.html", "style.css", "script.js"]
+    for i, content in enumerate(md_matches):
+        path = names[i] if i < len(names) else f"file_{i}.html"
+        files.append({"path": path, "content": content.strip()})
+
+    if files:
+        return files
+
+    # Fallback: wrap entire response as index.html
+    files.append({"path": "index.html", "content": text.strip()})
     return files
 
 
