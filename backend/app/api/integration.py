@@ -6,10 +6,10 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.database import get_db
+from app.config import settings
 from app.integration.registry import registry
 from app.integration.native_provider import NativeProvider
 from app.integration.mock_provider import MockProvider
-from app.integration.base import Capability
 
 logger = logging.getLogger("studioos.integration.api")
 router = APIRouter(prefix="/api/integration", tags=["integration"])
@@ -18,6 +18,17 @@ _PROVIDERS: list[Any] = [
     NativeProvider(),
     MockProvider(delay=1.0),
 ]
+
+
+def _init_providers():
+    urls = [u.strip() for u in settings.acp_server_urls.split(",") if u.strip()]
+    if urls:
+        from app.integration.acp_provider import ACPProvider
+        _PROVIDERS.append(ACPProvider(urls))
+        logger.info(f"ACP provider configured: {urls}")
+
+
+_init_providers()
 
 
 class RegisterAgentBody(BaseModel):

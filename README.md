@@ -78,6 +78,7 @@ All configuration is via environment variables (see `backend/.env.example`):
 | `ENVIRONMENT` | `development` | `development` or `production` |
 | `LOG_LEVEL` | `INFO` | Logging level |
 | `OUTPUT_DIR` | `output` | Directory for generated websites |
+| `ACP_SERVER_URLS` | (empty) | Comma-separated ACP server URLs for external agents |
 
 ### Frontend (API URL)
 
@@ -181,7 +182,22 @@ StudioOS separates governance agents (CEO, Directors, Leads) from execution agen
 |----------|------------------|--------|
 | Native (built-in) | Strategic Planner, Architect, Recruiter, Executor | Always available |
 | Mock (dev) | Backend Dev, Frontend Dev, Content Writer | Local testing only |
-| ACP (external) | Dynamic from ACP servers | Configurable via `ACP_SERVER_URLS` |
+| ACP (external) | Dynamic from ACP servers | Configurable via `ACP_SERVER_URLS` env var |
+
+To test ACP integration locally, start the mock ACP server and main app:
+
+```bash
+# Terminal 1 — Mock ACP server
+ACP_SERVER_URLS=http://localhost:9001 make dev
+
+# Terminal 2 — Mock ACP server (separate)
+python -m app.mock_acp_server
+```
+
+The mock ACP server runs on port 9001 and exposes 3 agents:
+- `backend_dev` (backend, python, api, database)
+- `frontend_dev` (frontend, typescript, css, ui)
+- `writer` (writing, documentation, content)
 
 ## Event System (V8 Kernel)
 
