@@ -73,3 +73,48 @@ async def test_pipeline_full_run(client):
     assert resp.status_code == 200
     project = resp.json()
     assert project["status"] in ("completed", "completed_with_errors")
+
+
+def test_pipeline_creates_project_structure(client):
+    """Pipeline should complete and produce expected output."""
+    resp = client.post("/api/projects", json={
+        "description": "Test MVP project",
+        "openai_api_key": "demo",
+        "name": "MVP Test",
+    })
+    assert resp.status_code == 201
+    pid = resp.json()["id"]
+
+    resp = client.post(f"/api/projects/{pid}/pipeline/run")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "completed"
+    assert data["tasks_completed"] > 0
+
+    resp = client.get(f"/api/projects/{pid}")
+    assert resp.status_code == 200
+    assert resp.json()["status"] in ("completed", "completed_with_errors")
+
+
+def test_pipeline_creates_prs_and_reviews(client):
+    """Pipeline should create PullRequests and Reviews for completed tasks."""
+    resp = client.post("/api/projects", json={
+        "description": "Test project for review verification",
+        "openai_api_key": "demo",
+        "name": "Review Test",
+    })
+    assert resp.status_code == 201
+    pid = resp.json()["id"]
+
+    resp = client.post(f"/api/projects/{pid}/pipeline/run")
+    assert resp.status_code == 200
+
+    resp = client.get(f"/api/projects/{pid}/git/prs")
+    assert resp.status_code == 200
+    prs = resp.json()
+    assert len(prs) > 0
+
+    resp = client.get(f"/api/projects/{pid}/reviews")
+    assert resp.status_code == 200
+    reviews = resp.json()
+    assert len(reviews) > 0

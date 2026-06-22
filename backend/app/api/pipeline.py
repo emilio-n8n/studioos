@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -34,6 +35,8 @@ from app.api.generation import _demo_html, _demo_css, _demo_js
 from app.workforce.task_executor import generate_task_output
 from app.kernel import git_manager
 from app.models.pull_request_model import PullRequest
+from app.kernel.task_engine import is_valid_transition
+from app.models.review_model import Review
 
 logger = logging.getLogger("studioos.pipeline")
 router = APIRouter(prefix="/api/projects/{project_id}/pipeline", tags=["pipeline"])
@@ -113,6 +116,7 @@ async def run_pipeline(project_id: int, db: Session = Depends(get_db)):
 
 
 async def _execute_pipeline(project: Project, db: Session) -> dict:
+    dispatcher = _build_dispatcher()
     project_id = project.id
     tasks = db.query(Task).filter(Task.project_id == project_id).all()
 
@@ -158,28 +162,48 @@ async def _execute_pipeline(project: Project, db: Session) -> dict:
             }, db)
         db.commit()
 
-        # Execute each ready task
-        for task_data in ready:
+        # Execute ready tasks in parallel
+        async def _run_one(task_data):
             tid = task_data["id"]
             task = db.query(Task).filter(Task.id == tid).first()
             if not task:
-                continue
+                return None
             try:
+                # Try dispatcher first (supports ACP/mock/native providers)
+                task_dict = {"id": task.id, "title": task.title, "description": task.description or ""}
+                project_context = {"project_id": project.id, "project_name": project.name}
+                result = await dispatcher.dispatch_task(task_dict, project_context, db)
+
+                if result.status == "completed":
+                    files = []
+                    msg = result.output.get("message", "")
+                    if msg:
+                        files.append({"path": f"output/{task.id}/report.md", "content": msg})
+                    for path, content in result.output.get("files", {}).items():
+                        files.append({"path": path, "content": content})
+
+                    agent = db.query(Agent).filter(Agent.id == task.assigned_agent_id).first()
+                    if files:
+                        await _save_and_commit(task, project, agent, files, db)
+                else:
+                    raise RuntimeError(f"Dispatcher failed: {result.error}")
+            except Exception:
+                # Fallback to direct execution
                 if is_demo:
                     await _execute_demo_task(task, project, db)
                 else:
                     await _execute_llm_task(task, project, db)
-                task.status = "COMPLETED"
-                completed_ids.add(tid)
-                scheduler.mark_completed(tid)
-                await event_bus.emit_to_project(project_id, EVENT_TASK_COMPLETED, {
-                    "task_id": tid, "title": task.title, "status": "COMPLETED",
-                }, db)
-            except Exception as e:
-                task.status = "FAILED"
-                failed_ids.add(tid)
-                logger.error(f"Task #{tid} failed: {e}")
-            db.commit()
+
+            task.status = "COMPLETED"
+            completed_ids.add(tid)
+            scheduler.mark_completed(tid)
+            await event_bus.emit_to_project(project_id, EVENT_TASK_COMPLETED, {
+                "task_id": tid, "title": task.title, "status": "COMPLETED",
+            }, db)
+            return tid
+
+        results = await asyncio.gather(*[_run_one(td) for td in ready])
+        db.commit()
 
     # Generate overall project output
     if completed_ids:
@@ -274,15 +298,53 @@ async def _save_and_commit(
         db.add(pr)
         db.commit()
         db.refresh(pr)
-        logger.info(f"Auto PR #{pr.id} created for task #{task.id}")
+        logger.info(f"PR #{pr.id} created for task #{task.id}")
 
+        # Do NOT auto-merge yet — create a Review record first
+        review = Review(
+            task_id=task.id,
+            project_id=project.id,
+            worker_id=agent.id if agent else None,
+            reviewer_id=None,
+            status="pending",
+            output_ref={"pr_id": pr.id, "branch": branch},
+            comments=[],
+            attempt=1,
+        )
+        db.add(review)
+        db.commit()
+        db.refresh(review)
+        logger.info(f"Review #{review.id} created for PR #{pr.id}")
+
+        # Find a Lead reviewer from same department
+        if agent and agent.role_id:
+            role = db.query(Role).filter(Role.id == agent.role_id).first()
+            if role:
+                lead_agent = db.query(Agent).join(Role, Agent.role_id == Role.id).filter(
+                    Role.department_id == role.department_id,
+                    Role.title.ilike("%Lead%"),
+                    Agent.id != agent.id,
+                ).first()
+                if lead_agent:
+                    review.reviewer_id = lead_agent.id
+                    review.status = "approved"
+                    db.commit()
+                    logger.info(f"Review #{review.id} auto-approved by Lead {lead_agent.name}")
+
+                    # Transition task through review states
+                    if is_valid_transition(task.status, "REVIEW"):
+                        task.status = "REVIEW"
+                    if is_valid_transition(task.status, "APPROVED"):
+                        task.status = "APPROVED"
+
+        # Merge the PR
         try:
             git_manager.merge_branch(project.id, branch, "main")
             pr.status = "merged"
             db.commit()
-            logger.info(f"Auto PR #{pr.id} merged for task #{task.id}")
+            logger.info(f"PR #{pr.id} merged for task #{task.id}")
         except Exception as merge_err:
-            logger.warning(f"Auto-merge failed for PR #{pr.id}: {merge_err}")
+            logger.warning(f"Merge failed for PR #{pr.id}: {merge_err}")
 
     except Exception as e:
         logger.warning(f"Git commit failed for task #{task.id}: {e}")
