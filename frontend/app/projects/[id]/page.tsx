@@ -15,6 +15,7 @@ import MemoryGraph from "@/components/memory/MemoryGraph";
 import ReviewPanel from "@/components/review/ReviewPanel";
 import GitPanel from "@/components/git/GitPanel";
 import DAGView from "@/components/pipeline/DAGView";
+import AgentRegistryPanel from "@/components/integration/AgentRegistryPanel";
 import {
   getProject,
   getOrgTree,
@@ -29,7 +30,7 @@ import {
 import { useWebSocket } from "@/hooks/useWebSocket";
 import type { Project, Dashboard, OrgTree, Task, StrategicDecision, Organization } from "@/lib/types";
 
-type Tab = "dashboard" | "organization" | "tasks" | "analysis" | "generation" | "logs" | "memory" | "reviews" | "git" | "pipeline";
+type Tab = "dashboard" | "organization" | "tasks" | "analysis" | "generation" | "logs" | "memory" | "reviews" | "git" | "pipeline" | "agents";
 
 export default function ProjectPage() {
   const params = useParams();
@@ -138,6 +139,7 @@ export default function ProjectPage() {
     { key: "reviews", label: "Reviews" },
     { key: "git", label: "Git" },
     { key: "pipeline", label: "Pipeline" },
+    { key: "agents", label: "Agents" },
     { key: "generation", label: "Génération" },
     { key: "logs", label: "Logs" },
   ];
@@ -271,6 +273,10 @@ export default function ProjectPage() {
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === "agents" && (
+          <AgentRegistryPanel />
         )}
 
         {activeTab === "generation" && (

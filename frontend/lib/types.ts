@@ -168,3 +168,29 @@ export interface MemoryGraphData {
   nodes: MemoryNodeData[];
   edges: MemoryEdgeData[];
 }
+
+export interface AgentRegistryEntry {
+  id: number;
+  provider: string;
+  external_id: string;
+  name: string;
+  description: string | null;
+  capabilities: string[];
+  cost: number;
+  speed: number;
+  quality: number;
+  status: string;
+  endpoint_url: string | null;
+  created_at: string;
+}
+
+export interface AgentSearchResult {
+  id: number;
+  provider: string;
+  name: string;
+  capabilities: string[];
+  cost: number;
+  speed: number;
+  quality: number;
+  score: number;
+}

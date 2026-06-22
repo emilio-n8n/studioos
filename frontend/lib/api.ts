@@ -101,3 +101,61 @@ export function getPipelineDag(projectId: number) {
     `/api/projects/${projectId}/pipeline/dag`
   );
 }
+
+// Agent Registry
+export function listRegistryAgents(status?: string, provider?: string) {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  if (provider) params.set("provider", provider);
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return request<import("./types").AgentRegistryEntry[]>(`/api/integration/agents${qs}`);
+}
+
+export function registerAgent(data: {
+  provider: string;
+  name: string;
+  description?: string;
+  capabilities?: string[];
+  endpoint_url?: string;
+  cost?: number;
+  speed?: number;
+  quality?: number;
+}) {
+  return request<{ id: number; provider: string; name: string; status: string }>(
+    "/api/integration/agents/register",
+    { method: "POST", body: JSON.stringify(data) }
+  );
+}
+
+export function approveAgent(entryId: number) {
+  return request<{ id: number; name: string; status: string }>(
+    `/api/integration/agents/${entryId}/approve`,
+    { method: "POST" }
+  );
+}
+
+export function rejectAgent(entryId: number) {
+  return request<{ id: number; name: string; status: string }>(
+    `/api/integration/agents/${entryId}/reject`,
+    { method: "POST" }
+  );
+}
+
+export function discoverProviders() {
+  return request<{ discovered: number; total: number }>(
+    "/api/integration/providers/discover",
+    { method: "POST" }
+  );
+}
+
+export function listProviders() {
+  return request<{ providers: { name: string; class: string }[] }>(
+    "/api/integration/providers"
+  );
+}
+
+export function searchAgentsByCapability(q: string, minQuality = 1) {
+  return request<import("./types").AgentSearchResult[]>(
+    `/api/integration/agents/search?q=${encodeURIComponent(q)}&min_quality=${minQuality}`
+  );
+}
